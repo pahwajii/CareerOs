@@ -230,7 +230,9 @@ async function runTests() {
       // 10. Test AI route error handling (when API key is empty)
       console.log("\n10. Testing AI Endpoint Graceful Degradation (no API key configured)...")
       const originalKey = process.env.FORGE_API_KEY
+      const originalGeminiKey = process.env.GEMINI_API_KEY
       delete process.env.FORGE_API_KEY
+      delete process.env.GEMINI_API_KEY
 
       const aiPrepRes = await fetch(`${baseUrl}/ai/prep`, {
         method: "POST",
@@ -242,14 +244,17 @@ async function runTests() {
       })
       const aiPrepData = await aiPrepRes.json()
       
-      // Restore API key
+      // Restore API keys
       if (originalKey) {
         process.env.FORGE_API_KEY = originalKey
+      }
+      if (originalGeminiKey) {
+        process.env.GEMINI_API_KEY = originalGeminiKey
       }
 
       console.log(`AI Endpoint response status: ${aiPrepRes.status}`)
       console.log(`AI Endpoint error response: ${JSON.stringify(aiPrepData)}`)
-      if (aiPrepRes.status !== 500 || !aiPrepData.message.includes("API key is not configured")) {
+      if (aiPrepRes.status !== 500 || (!aiPrepData.message.includes("API key is not configured") && !aiPrepData.message.includes("FORGE_API_KEY is not defined"))) {
         throw new Error(`AI route did not degrade gracefully: ${JSON.stringify(aiPrepData)}`)
       }
       console.log("✔ AI endpoint degraded gracefully, returning an informative 500 error.")

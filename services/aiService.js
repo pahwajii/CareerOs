@@ -16,26 +16,54 @@ class AIService {
 
   /**
    * General purpose wrapper to call the OpenAI-compatible chat completion endpoint.
-   * Degrades gracefully by returning helper error descriptions instead of crashing.
+   * Degrades gracefully by falling back to Gemini if the primary provider fails.
    */
   async callChatCompletion(messages, temperature = 0.7) {
-    if (!this.apiKey) {
-      console.warn("AI Service Warning: FORGE_API_KEY is not defined in the environment.")
-      throw new Error("AI features are currently unavailable because the API key is not configured. Please add FORGE_API_KEY to your backend .env file.")
-    }
+    // 1. Try Primary Provider (ForgeAI)
+    try {
+      if (!this.apiKey) {
+        throw new Error("FORGE_API_KEY is not defined in the environment.")
+      }
+      console.log(`AI Service: Attempting primary request using model ${this.model}...`)
+      return await this._executeRequest(this.apiKey, this.baseUrl, this.model, messages, temperature)
+    } catch (primaryError) {
+      console.warn("AI Service: Primary AI Gateway call failed:", primaryError.message)
 
+      // 2. Try Fallback Provider (Gemini API)
+      const geminiKey = process.env.GEMINI_API_KEY
+      if (geminiKey) {
+        console.log("AI Service: Falling back to Google Gemini API (gemini-2.5-flash)...")
+        const geminiUrl = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai"
+        const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+        
+        try {
+          return await this._executeRequest(geminiKey, geminiUrl, geminiModel, messages, temperature)
+        } catch (fallbackError) {
+          console.error("AI Service: Fallback Gemini API call also failed:", fallbackError.message)
+          throw new Error(`AI service failed: Primary error: ${primaryError.message} | Fallback error: ${fallbackError.message}`)
+        }
+      } else {
+        throw new Error(`AI service failed: ${primaryError.message} (No Gemini fallback key configured)`)
+      }
+    }
+  }
+
+  /**
+   * Helper to perform raw OpenAI-compatible API requests
+   */
+  async _executeRequest(apiKey, baseUrl, model, messages, temperature) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000) // 30-second timeout
 
     try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.apiKey}`
+          "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: this.model,
+          model,
           messages,
           temperature
         }),
@@ -47,12 +75,12 @@ class AIService {
       if (!response.ok) {
         const errText = await response.text()
         console.error(`AI Service API error (${response.status}):`, errText)
-        throw new Error(`AI Gateway responded with status ${response.status}: ${errText || response.statusText}`)
+        throw new Error(`Gateway responded with status ${response.status}: ${errText || response.statusText}`)
       }
 
       const data = await response.json()
       if (!data.choices || data.choices.length === 0) {
-        throw new Error("AI Gateway returned an empty choice list.")
+        throw new Error("Gateway returned an empty choice list.")
       }
 
       return data.choices[0].message.content
@@ -63,7 +91,7 @@ class AIService {
         throw new Error("The AI service request timed out. Please try again.")
       }
       console.error("AI Service Exception:", error.message)
-      throw new Error(`AI service failed: ${error.message}`)
+      throw error
     }
   }
 
