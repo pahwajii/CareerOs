@@ -2,6 +2,9 @@ import express from "express"
 import cors from "cors"
 import dotenv from "dotenv"
 import connectDB from "./config/db.js"
+import { validateEnv } from "./utils/envValidator.js"
+import errorHandler from "./middleware/errorHandler.js"
+
 import authRoutes from "./routes/auth.js"
 import jobRoutes from "./routes/jobs.js"
 import profileRoutes from "./routes/profile.js"
@@ -10,6 +13,9 @@ import aiRoutes from "./routes/ai.js"
 
 // Load env variables
 dotenv.config()
+
+// Validate environments on boot
+validateEnv()
 
 // Connect to database
 connectDB()
@@ -36,11 +42,8 @@ app.get("/", (req, res) => {
   res.json({ message: "Job Tracker API is running..." })
 })
 
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err.stack)
-  res.status(500).json({ message: err.message || "An unexpected server error occurred." })
-})
+// Centralized Global Error Handler Middleware
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 5000
 

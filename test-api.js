@@ -9,6 +9,7 @@ import aiRoutes from "./routes/ai.js"
 import Job from "./models/Job.js"
 import User from "./models/User.js"
 import dotenv from "dotenv"
+import errorHandler from "./middleware/errorHandler.js"
 
 dotenv.config()
 
@@ -33,6 +34,7 @@ app.use("/api/jobs", jobRoutes)
 app.use("/api/profile-links", profileRoutes)
 app.use("/api/resume", resumeRoutes)
 app.use("/api/ai", aiRoutes)
+app.use(errorHandler)
 
 let server
 
