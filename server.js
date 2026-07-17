@@ -13,6 +13,7 @@ import profileRoutes from "./routes/profile.js"
 import resumeRoutes from "./routes/resume.js"
 import aiRoutes from "./routes/ai.js"
 import prepRoutes from "./routes/prep.js"
+import automateRoutes from "./routes/automate.js"
 
 // Load env variables
 dotenv.config()
@@ -39,8 +40,16 @@ const app = express()
 
 // Middleware
 const clientUrl = process.env.CLIENT_URL || "http://localhost:5173"
+const allowedOrigins = [clientUrl]
+
 app.use(cors({
-  origin: clientUrl,
+  origin: (origin, callback) => {
+    if (!origin || origin.startsWith("chrome-extension://") || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error("Not allowed by CORS"))
+    }
+  },
   credentials: true
 }))
 app.use(express.json())
@@ -55,6 +64,7 @@ app.use("/api/profile", profileRoutes) // Changed endpoint path from "/api/profi
 app.use("/api/resume", resumeRoutes)
 app.use("/api/ai", aiRoutes)
 app.use("/api/prep", prepRoutes)
+app.use("/api/automate", automateRoutes)
 
 // Root Endpoint
 app.get("/", (req, res) => {
