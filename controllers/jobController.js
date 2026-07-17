@@ -29,7 +29,14 @@ export async function createJob(req, res, next) {
     source,
     jobDescription,
     appliedDate,
-    checklist
+    checklist,
+    recruiterName,
+    recruiterEmail,
+    recruiterPhone,
+    matchScore,
+    resumeVersion,
+    coverLetter,
+    timeline
   } = req.body
 
   try {
@@ -49,7 +56,14 @@ export async function createJob(req, res, next) {
       source: source || "",
       jobDescription: jobDescription || "",
       appliedDate: appliedDate || Date.now(),
-      checklist: checklist || []
+      checklist: checklist || [],
+      recruiterName: recruiterName || "",
+      recruiterEmail: recruiterEmail || "",
+      recruiterPhone: recruiterPhone || "",
+      matchScore: matchScore || 0,
+      resumeVersion: resumeVersion || "",
+      coverLetter: coverLetter || "",
+      timeline: timeline || []
     })
 
     const job = await newJob.save()
@@ -75,7 +89,14 @@ export async function updateJob(req, res, next) {
     source,
     jobDescription,
     appliedDate,
-    checklist
+    checklist,
+    recruiterName,
+    recruiterEmail,
+    recruiterPhone,
+    matchScore,
+    resumeVersion,
+    coverLetter,
+    timeline
   } = req.body
 
   try {
@@ -96,6 +117,13 @@ export async function updateJob(req, res, next) {
     if (jobDescription !== undefined) job.jobDescription = jobDescription
     if (appliedDate !== undefined) job.appliedDate = appliedDate
     if (checklist !== undefined) job.checklist = checklist
+    if (recruiterName !== undefined) job.recruiterName = recruiterName
+    if (recruiterEmail !== undefined) job.recruiterEmail = recruiterEmail
+    if (recruiterPhone !== undefined) job.recruiterPhone = recruiterPhone
+    if (matchScore !== undefined) job.matchScore = matchScore
+    if (resumeVersion !== undefined) job.resumeVersion = resumeVersion
+    if (coverLetter !== undefined) job.coverLetter = coverLetter
+    if (timeline !== undefined) job.timeline = timeline
 
     const updatedJob = await job.save()
     res.json(updatedJob)
@@ -116,40 +144,14 @@ export async function deleteJob(req, res, next) {
       return res.status(404).json({ message: "Job not found or unauthorized" })
     }
 
-    res.json({ message: "Job removed successfully" })
+    res.json({ message: "Job deleted successfully" })
   } catch (error) {
     next(error)
   }
 }
 
 /**
- * Update/toggle/add/remove checklist items for a job
- * PUT /api/jobs/:id/checklist
- */
-export async function updateChecklist(req, res, next) {
-  const { checklist } = req.body
-
-  try {
-    if (!Array.isArray(checklist)) {
-      return res.status(400).json({ message: "Checklist must be an array" })
-    }
-
-    const job = await Job.findOne({ _id: req.params.id, user: req.userId })
-    if (!job) {
-      return res.status(404).json({ message: "Job not found or unauthorized" })
-    }
-
-    job.checklist = checklist
-    await job.save()
-
-    res.json(job.checklist)
-  } catch (error) {
-    next(error)
-  }
-}
-
-/**
- * Get aggregated job statistics
+ * Get job analytics summary
  * GET /api/jobs/analytics
  */
 export async function getAnalytics(req, res, next) {
@@ -159,52 +161,66 @@ export async function getAnalytics(req, res, next) {
     const statusCounts = {
       saved: 0,
       applied: 0,
-      screening: 0,
+      oa: 0,
       interview: 0,
+      hr: 0,
       offer: 0,
       rejected: 0,
       withdrawn: 0
     }
 
     jobs.forEach(job => {
-      if (statusCounts[job.status] !== undefined) {
-        statusCounts[job.status]++
+      const s = job.status ? job.status.toLowerCase() : ""
+      if (statusCounts[s] !== undefined) {
+        statusCounts[s]++
       }
     })
-
-    const timelineMap = {}
-    jobs.forEach(job => {
-      if (job.appliedDate) {
-        const dateStr = new Date(job.appliedDate).toISOString().split("T")[0]
-        timelineMap[dateStr] = (timelineMap[dateStr] || 0) + 1
-      }
-    })
-
-    const timelineData = Object.keys(timelineMap)
-      .sort()
-      .map(date => ({
-        date,
-        count: timelineMap[date]
-      }))
 
     const totalJobs = jobs.length
-    const interviewCount = statusCounts.interview + statusCounts.offer
-    const offerCount = statusCounts.offer
-
-    const interviewSuccessRate = interviewCount > 0 
-      ? Math.round((offerCount / interviewCount) * 100)
-      : 0
+    const offerCount = statusCounts.offer || 0
+    const interviewCount = statusCounts.interview || 0
+    const interviewSuccessRate = interviewCount > 0 ? (offerCount / interviewCount) * 100 : 0
 
     res.json({
       statusCounts,
-      timelineData,
       metrics: {
         totalJobs,
-        interviewSuccessRate,
         interviewCount,
-        offerCount
-      }
+        offerCount,
+        interviewSuccessRate
+      },
+      timelineData: jobs.map(j => ({
+        id: j._id,
+        role: j.role,
+        company: j.company,
+        status: j.status,
+        updatedAt: j.updatedAt
+      }))
     })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Update checklist item (toggle)
+ * PUT /api/jobs/:id/checklist
+ */
+export async function updateChecklist(req, res, next) {
+  const { checklist } = req.body
+
+  try {
+    const job = await Job.findOneAndUpdate(
+      { _id: req.params.id, user: req.userId },
+      { checklist },
+      { new: true }
+    )
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found or unauthorized" })
+    }
+
+    res.json(job.checklist)
   } catch (error) {
     next(error)
   }

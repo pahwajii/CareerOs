@@ -11,6 +11,21 @@ const checklistSchema = new mongoose.Schema({
   }
 })
 
+const timelineEventSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true
+  },
+  date: {
+    type: Date,
+    required: true
+  },
+  details: {
+    type: String,
+    default: ""
+  }
+})
+
 const jobSchema = new mongoose.Schema(
   {
     user: {
@@ -28,7 +43,7 @@ const jobSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["saved", "applied", "screening", "interview", "offer", "rejected", "withdrawn"],
+      enum: ["saved", "applied", "oa", "interview", "hr", "offer", "rejected", "withdrawn"],
       default: "applied"
     },
     salary: {
@@ -59,7 +74,32 @@ const jobSchema = new mongoose.Schema(
       type: Date,
       default: Date.now
     },
-    checklist: [checklistSchema]
+    recruiterName: {
+      type: String,
+      default: ""
+    },
+    recruiterEmail: {
+      type: String,
+      default: ""
+    },
+    recruiterPhone: {
+      type: String,
+      default: ""
+    },
+    matchScore: {
+      type: Number,
+      default: 0
+    },
+    resumeVersion: {
+      type: String,
+      default: ""
+    },
+    coverLetter: {
+      type: String,
+      default: ""
+    },
+    checklist: [checklistSchema],
+    timeline: [timelineEventSchema]
   },
   { timestamps: true }
 )

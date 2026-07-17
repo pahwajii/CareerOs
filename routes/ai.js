@@ -6,6 +6,12 @@ import {
   getApplyAssist,
   matchAnalyze
 } from "../controllers/aiController.js"
+import {
+  generateOutreach,
+  saveOutreach,
+  getOutreachHistories,
+  deleteOutreach
+} from "../controllers/outreachController.js"
 
 const router = express.Router()
 
@@ -25,8 +31,28 @@ router.post("/resume-analyze", auth, analyzeResume)
 router.post("/match-analyze", auth, matchAnalyze)
 
 // @route   POST /api/ai/apply-assist
-// @desc    Cover letter generator
+// @desc    Cover letter generator (legacy)
 // @access  Private
 router.post("/apply-assist", auth, getApplyAssist)
+
+// @route   POST /api/ai/outreach/generate
+// @desc    Outreach & cover letter generator (GPT-5.5)
+// @access  Private
+router.post("/outreach/generate", auth, generateOutreach)
+
+// @route   POST /api/ai/outreach/save
+// @desc    Save outreach template to MongoDB
+// @access  Private
+router.post("/outreach/save", auth, saveOutreach)
+
+// @route   GET /api/ai/outreach/:jobId
+// @desc    Get outreach templates list for a job
+// @access  Private
+router.get("/outreach/:jobId", auth, getOutreachHistories)
+
+// @route   DELETE /api/ai/outreach/:id
+// @desc    Delete saved outreach template
+// @access  Private
+router.delete("/outreach/:id", auth, deleteOutreach)
 
 export default router

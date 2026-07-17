@@ -12,6 +12,7 @@ import jobRoutes from "./routes/jobs.js"
 import profileRoutes from "./routes/profile.js"
 import resumeRoutes from "./routes/resume.js"
 import aiRoutes from "./routes/ai.js"
+import prepRoutes from "./routes/prep.js"
 
 // Load env variables
 dotenv.config()
@@ -53,6 +54,7 @@ app.use("/api/jobs", jobRoutes)
 app.use("/api/profile", profileRoutes) // Changed endpoint path from "/api/profile-links" to "/api/profile"
 app.use("/api/resume", resumeRoutes)
 app.use("/api/ai", aiRoutes)
+app.use("/api/prep", prepRoutes)
 
 // Root Endpoint
 app.get("/", (req, res) => {
