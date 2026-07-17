@@ -20,7 +20,11 @@ dotenv.config()
 validateEnv()
 
 // Ensure physical uploads folder exists
-const uploadDirs = [path.join("uploads", "resumes"), path.join("uploads", "portfolios")]
+const uploadDirs = [
+  path.join("uploads", "resumes"),
+  path.join("uploads", "portfolios"),
+  path.join("uploads", "tailored")
+]
 uploadDirs.forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
