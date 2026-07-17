@@ -31,7 +31,7 @@ app.use(express.json())
 
 app.use("/api/auth", authRoutes)
 app.use("/api/jobs", jobRoutes)
-app.use("/api/profile-links", profileRoutes)
+app.use("/api/profile", profileRoutes)
 app.use("/api/resume", resumeRoutes)
 app.use("/api/ai", aiRoutes)
 app.use(errorHandler)
