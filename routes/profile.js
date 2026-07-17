@@ -5,7 +5,8 @@ import {
   getProfile,
   updateProfile,
   uploadResumeFile,
-  uploadPortfolioFile
+  uploadPortfolioFile,
+  buildProfile
 } from "../controllers/profileController.js"
 
 const router = express.Router()
@@ -45,5 +46,10 @@ router.post("/upload-resume", auth, upload.single("resume"), uploadResumeFile)
 // @desc    Upload user's portfolio file
 // @access  Private
 router.post("/upload-portfolio", auth, upload.single("portfolio"), uploadPortfolioFile)
+
+// @route   POST /api/profile/build
+// @desc    Trigger AI Profile Builder pipeline
+// @access  Private
+router.post("/build", auth, buildProfile)
 
 export default router

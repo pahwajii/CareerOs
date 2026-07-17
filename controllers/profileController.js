@@ -2,6 +2,7 @@ import pdf from "pdf-parse"
 import fs from "fs"
 import path from "path"
 import User from "../models/User.js"
+import profileBuilderService from "../services/profileBuilderService.js"
 
 /**
  * Get full user profile
@@ -163,5 +164,37 @@ export async function uploadPortfolioFile(req, res, next) {
     })
   } catch (error) {
     next(error)
+  }
+}
+
+/**
+ * Build user profile dynamically using pipeline parsing
+ * POST /api/profile/build
+ */
+export async function buildProfile(req, res, next) {
+  try {
+    const user = await User.findById(req.userId)
+    if (!user) {
+      return res.status(404).json({ message: "User not found" })
+    }
+
+    // Set headers for streaming chunk updates
+    res.setHeader("Content-Type", "application/json")
+    res.setHeader("Transfer-Encoding", "chunked")
+    res.setHeader("Cache-Control", "no-cache")
+    res.setHeader("Connection", "keep-alive")
+
+    const onProgress = (stage, message, data = null) => {
+      res.write(JSON.stringify({ stage, message, data }) + "\n")
+    }
+
+    await profileBuilderService.buildProfilePipeline(user, onProgress)
+    res.end()
+  } catch (error) {
+    if (!res.headersSent) {
+      return next(error)
+    }
+    res.write(JSON.stringify({ stage: "error", message: error.message || "Failed during pipeline building" }) + "\n")
+    res.end()
   }
 }

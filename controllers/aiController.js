@@ -1,6 +1,7 @@
 import Job from "../models/Job.js"
 import User from "../models/User.js"
 import aiService from "../services/aiService.js"
+import aiOrchestrator from "../services/aiOrchestrator.js"
 
 /**
  * Generate outreach email and interview prep tips for a job application
@@ -81,6 +82,85 @@ export async function getApplyAssist(req, res, next) {
 
     const result = await aiService.generateApplyAssist(resumeText, job.role, job.company, job.jobDescription)
     res.json({ result })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Run match analysis of Master Profile vs Job Description using DeepSeek R1
+ * POST /api/ai/match-analyze
+ */
+export async function matchAnalyze(req, res, next) {
+  const { jobDescription } = req.body
+
+  try {
+    if (!jobDescription || jobDescription.trim() === "") {
+      return res.status(400).json({ message: "Job description is required for match analysis." })
+    }
+
+    const user = await User.findById(req.userId).select("-password")
+    if (!user) {
+      return res.status(404).json({ message: "User not found." })
+    }
+
+    const profilePayload = {
+      name: user.name,
+      phone: user.phone,
+      headline: user.headline,
+      bio: user.bio,
+      skills: user.skills,
+      education: user.education,
+      experience: user.experience,
+      projects: user.projects,
+      certifications: user.certifications
+    }
+
+    const prompt = `
+You are an expert ATS matching engine and technical recruiter.
+Compare the user's Master Career Profile against the provided Job Description.
+
+User Master Career Profile:
+${JSON.stringify(profilePayload)}
+
+Job Description:
+${jobDescription}
+
+Perform a rigorous match analysis and output a single JSON object containing:
+1. "overallMatch": integer (0-100)
+2. "skillsMatch": integer (0-100)
+3. "projectMatch": integer (0-100)
+4. "experienceMatch": integer (0-100)
+5. "educationMatch": integer (0-100)
+6. "missingKeywords": array of string (keywords missing from profile)
+7. "strengths": array of string (at least 3 strengths matching the JD)
+8. "weaknesses": array of string (at least 2 gap areas or weaknesses)
+9. "suggestions": array of string (actionable feedback to improve the profile/resume)
+
+Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include markdown code block tags or reasoning segments.
+`
+    const messages = [
+      { role: "system", content: "You are a precise match parser returning raw JSON." },
+      { role: "user", content: prompt }
+    ]
+
+    const rawResponse = await aiOrchestrator.execute("gap-analysis", messages)
+    
+    let cleaned = rawResponse.trim()
+    if (cleaned.startsWith("```")) {
+      cleaned = cleaned.replace(/^```(json)?/, "").replace(/```$/, "").trim()
+    }
+
+    try {
+      const parsed = JSON.parse(cleaned)
+      res.json(parsed)
+    } catch (parseError) {
+      console.error("Failed to parse DeepSeek matching response:", cleaned, parseError)
+      res.status(500).json({
+        message: "Failed to parse AI matching response. Please try again.",
+        rawResponse
+      })
+    }
   } catch (error) {
     next(error)
   }
