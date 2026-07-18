@@ -339,6 +339,170 @@ function generateDocxFile(filePath, contentText, user) {
 }
 
 /**
+ * Helper to write a clean LaTeX document conforming to the exact user format
+ */
+function generateTexFile(filePath, contentText, user) {
+  let tex = `\\documentclass[10pt,letterpaper]{article}
+
+\\usepackage[left=0.42in,top=0.25in,right=0.42in,bottom=0.25in]{geometry}
+\\usepackage{hyperref}
+\\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=blue}
+\\usepackage{enumitem}
+\\usepackage{titlesec}
+\\usepackage{array}
+\\usepackage{xcolor}
+\\usepackage{parskip}
+
+\\setlength{\\parindent}{0pt}
+\\setlength{\\parskip}{0pt}
+
+\\titleformat{\\section}{\\normalfont\\bfseries\\uppercase}{}{0em}{}[\\titlerule]
+\\titlespacing{\\section}{0pt}{3pt}{2pt}
+
+\\setlist[itemize]{noitemsep, topsep=0pt, parsep=0pt, partopsep=0pt, leftmargin=1.1em}
+
+\\pagestyle{empty}
+
+\\begin{document}
+
+% ---- HEADER ----
+{\\centering
+  {\\large \\textbf{${(user.name || "").toUpperCase()}}} \\\\[1pt]
+  \\small
+  ${user.headline || "Software Engineer"} \\\\[1pt]
+`
+
+  // Contacts
+  const contacts = []
+  if (user.email) {
+    contacts.push(`\\href{mailto:${user.email}}{${user.email}}`)
+  }
+  if (user.phone) {
+    contacts.push(user.phone)
+  }
+  if (user.codingProfiles?.github) {
+    const gh = user.codingProfiles.github.replace(/^https?:\/\/(www\.)?/, "")
+    contacts.push(`\\href{${user.codingProfiles.github}}{${gh}}`)
+  }
+  if (user.codingProfiles?.linkedin) {
+    const li = user.codingProfiles.linkedin.replace(/^https?:\/\/(www\.)?/, "")
+    contacts.push(`\\href{${user.codingProfiles.linkedin}}{${li}}`)
+  }
+  if (user.codingProfiles?.portfolio) {
+    contacts.push(`\\href{${user.codingProfiles.portfolio}}{Portfolio}`)
+  }
+
+  tex += "  " + contacts.join(" $\\;|\\;$ ") + " \\\\\n\\par}\n\n\\vspace{2pt}\n"
+
+  // Body elements
+  const lines = contentText.split("\n")
+  let inItemize = false
+  let inSkillsTable = false
+
+  lines.forEach(line => {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      return
+    }
+
+    // Handle Section Header (e.g. ## EDUCATION or ## TECHNICAL SKILLS)
+    if (trimmed.startsWith("##")) {
+      if (inItemize) {
+        tex += "\\end{itemize}\n"
+        inItemize = false
+      }
+      if (inSkillsTable) {
+        tex += "\\end{tabular}\n"
+        inSkillsTable = false
+      }
+      
+      const title = trimmed.replace(/^##+\s*/, "").toUpperCase()
+      
+      let cleanTitle = title
+      if (title.includes("ACHIEVEMENTS")) {
+        cleanTitle = "Achievements \\& Certifications"
+      }
+      
+      tex += `\n% ---- ${cleanTitle.toUpperCase()} ----\n`
+      tex += `\\section{${cleanTitle}}\n`
+      if (cleanTitle.toLowerCase().includes("skills")) {
+        tex += "\\vspace{2pt}\n\\begin{tabular}{@{} >{\\bfseries}l @{\\hspace{2ex}} l}\n"
+        inSkillsTable = true
+      } else {
+        tex += "\\vspace{1pt}\n"
+      }
+    }
+    // Handle Skills list rows (e.g. **Languages**: JavaScript, TypeScript)
+    else if (inSkillsTable && trimmed.startsWith("**")) {
+      const parts = trimmed.split(":")
+      const left = parts[0].replace(/\*\*/g, "").trim()
+      const right = parts.slice(1).join(":").trim()
+      
+      const cleanRight = right.replace(/([&%$#_])/g, "\\$1")
+      tex += `${left} & ${cleanRight} \\\\\n`
+    }
+    // Handle split lines with :: (e.g. B.Tech in CS :: 2022 - 2026)
+    else if (trimmed.includes("::")) {
+      if (inItemize) {
+        tex += "\\end{itemize}\n"
+        inItemize = false
+      }
+      
+      const parts = trimmed.split("::").map(p => p.trim())
+      const left = parts[0].replace(/([&%$#_])/g, "\\$1")
+      const right = parts[1] || ""
+      
+      if (left.toLowerCase().includes("bundelkhand") || left.toLowerCase().includes("cgpa")) {
+        tex += `${left} \\hfill ${right} \n`
+      } else {
+        tex += `\\textbf{${left}} \\hfill {${right}} \\\\\n`
+      }
+    }
+    // Handle bullet points
+    else if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
+      if (inSkillsTable) {
+        tex += "\\end{tabular}\n"
+        inSkillsTable = false
+      }
+      if (!inItemize) {
+        tex += "\\begin{itemize}\n"
+        inItemize = true
+      }
+      
+      let bulletText = trimmed.replace(/^[-*]\s*/, "")
+      bulletText = bulletText.replace(/\*\*(.*?)\*\*/g, "\\textbf{$1}")
+      bulletText = bulletText.replace(/([&%$#_])/g, "\\$1")
+      
+      tex += `  \\item ${bulletText}\n`
+    }
+    // Handle regular description text (e.g. professional summary)
+    else {
+      if (inItemize) {
+        tex += "\\end{itemize}\n"
+        inItemize = false
+      }
+      if (inSkillsTable) {
+        tex += "\\end{tabular}\n"
+        inSkillsTable = false
+      }
+      const escaped = trimmed.replace(/([&%$#_])/g, "\\$1")
+      tex += `${escaped}\n`
+    }
+  })
+
+  if (inItemize) {
+    tex += "\\end{itemize}\n"
+  }
+  if (inSkillsTable) {
+    tex += "\\end{tabular}\n"
+  }
+
+  tex += "\n\\end{document}\n"
+  
+  fs.writeFileSync(filePath, tex)
+}
+
+/**
  * Trigger AI Resume Tailoring pipeline using Claude Sonnet Thinking
  * POST /api/resume/tailor
  */
@@ -461,13 +625,16 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
 
     const pdfFileName = `${req.userId}_${jobId}_${timestamp}.pdf`
     const docxFileName = `${req.userId}_${jobId}_${timestamp}.docx`
+    const texFileName = `${req.userId}_${jobId}_${timestamp}.tex`
 
     const pdfPath = path.join(dir, pdfFileName)
     const docxPath = path.join(dir, docxFileName)
+    const texPath = path.join(dir, texFileName)
 
     // Generate physical documents with user info block
     generatePdfFile(pdfPath, parsed.tailoredText || "", user)
     generateDocxFile(docxPath, parsed.tailoredText || "", user)
+    generateTexFile(texPath, parsed.tailoredText || "", user)
 
     // Store in TailoredResume collection
     const tailored = new TailoredResume({
@@ -481,7 +648,8 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
       missingSkills: parsed.missingSkills || [],
       suggestions: parsed.suggestions || [],
       pdfFileName,
-      docxFileName
+      docxFileName,
+      texFileName
     })
 
     await tailored.save()
@@ -557,3 +725,28 @@ export async function downloadDocx(req, res, next) {
     next(error)
   }
 }
+
+/**
+ * Download tailored LaTeX (.tex) file
+ * GET /api/resume/download/tex/:id
+ */
+export async function downloadTex(req, res, next) {
+  const { id } = req.params
+
+  try {
+    const tailored = await TailoredResume.findOne({ _id: id, user: req.userId })
+    if (!tailored || !tailored.texFileName) {
+      return res.status(404).json({ message: "LaTeX document not found." })
+    }
+
+    const filePath = path.join("uploads", "tailored", tailored.texFileName)
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "Physical LaTeX file missing from disk." })
+    }
+
+    res.download(filePath, `${tailored.company.replace(/\s+/g, "_")}_Tailored_Resume.tex`)
+  } catch (error) {
+    next(error)
+  }
+}
+

@@ -47,6 +47,10 @@ const tailoredResumeSchema = new mongoose.Schema(
     docxFileName: {
       type: String,
       default: ""
+    },
+    texFileName: {
+      type: String,
+      default: ""
     }
   },
   { timestamps: true }

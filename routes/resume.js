@@ -6,7 +6,8 @@ import {
   tailorResume,
   getTailoredHistories,
   downloadPdf,
-  downloadDocx
+  downloadDocx,
+  downloadTex
 } from "../controllers/resumeTailorController.js"
 
 const router = express.Router()
@@ -48,5 +49,10 @@ router.get("/download/pdf/:id", auth, downloadPdf)
 // @desc    Download tailored DOCX version
 // @access  Private
 router.get("/download/docx/:id", auth, downloadDocx)
+
+// @route   GET /api/resume/download/tex/:id
+// @desc    Download tailored LaTeX (.tex) version
+// @access  Private
+router.get("/download/tex/:id", auth, downloadTex)
 
 export default router
