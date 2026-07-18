@@ -4,7 +4,8 @@ import {
   getPrep,
   analyzeResume,
   getApplyAssist,
-  matchAnalyze
+  matchAnalyze,
+  parseJobDescription
 } from "../controllers/aiController.js"
 import {
   generateOutreach,
@@ -54,5 +55,10 @@ router.get("/outreach/:jobId", auth, getOutreachHistories)
 // @desc    Delete saved outreach template
 // @access  Private
 router.delete("/outreach/:id", auth, deleteOutreach)
+
+// @route   POST /api/ai/parse-job
+// @desc    Parse raw job description text and extract structured fields using Gemini
+// @access  Private
+router.post("/parse-job", auth, parseJobDescription)
 
 export default router

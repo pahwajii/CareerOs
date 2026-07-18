@@ -165,3 +165,58 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
     next(error)
   }
 }
+
+/**
+ * Parse raw job description text and extract structured parameters using Gemini Flash
+ * POST /api/ai/parse-job
+ */
+export async function parseJobDescription(req, res, next) {
+  const { text } = req.body
+
+  try {
+    if (!text || text.trim() === "") {
+      return res.status(400).json({ message: "Job description text is required." })
+    }
+
+    const prompt = `
+You are an expert ATS parser. Parse the following raw job description text and extract key structural parameters.
+Return a single JSON object with precisely these fields:
+1. "company": Company name (or empty string if not found)
+2. "role": Job title / role title (or empty string if not found)
+3. "location": Location details (e.g. Remote, Hybrid, or Onsite city, or empty string if not found)
+4. "salary": Expected or offered salary range (or empty string if not found)
+5. "jobDescription": The parsed, cleaned job description text
+
+Raw Text:
+${text}
+
+Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include markdown code block tags.
+`
+    const messages = [
+      { role: "system", content: "You are a precise job description parser returning raw JSON." },
+      { role: "user", content: prompt }
+    ]
+
+    console.log("AI Job Parsing: Dispatching parser request to Gemini Flash...")
+    const rawResponse = await aiOrchestrator.execute("job-parsing", messages)
+    
+    let cleaned = rawResponse.trim()
+    if (cleaned.startsWith("```")) {
+      cleaned = cleaned.replace(/^```(json)?/, "").replace(/```$/, "").trim()
+    }
+
+    try {
+      const parsed = JSON.parse(cleaned)
+      res.json(parsed)
+    } catch (parseError) {
+      console.error("Failed to parse Gemini job parsing response:", cleaned, parseError)
+      res.status(500).json({
+        message: "Failed to parse AI job parsing response. Please try again.",
+        rawResponse
+      })
+    }
+  } catch (error) {
+    next(error)
+  }
+}
+
