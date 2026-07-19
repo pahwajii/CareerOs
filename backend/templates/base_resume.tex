@@ -1,0 +1,121 @@
+\documentclass[10pt,letterpaper]{article}
+
+\usepackage[left=0.42in,top=0.25in,right=0.42in,bottom=0.25in]{geometry}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=blue}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{parskip}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+
+\titleformat{\section}{\normalfont\bfseries\uppercase}{}{0em}{}[\titrule]
+\titlespacing{\section}{0pt}{3pt}{2pt}
+
+\setlist[itemize]{noitemsep, topsep=0pt, parsep=0pt, partopsep=0pt, leftmargin=1.1em}
+
+\pagestyle{empty}
+
+\begin{document}
+
+% ---- HEADER ----
+{\centering
+  {\large \textbf{LAKSHAY PAHWA}} \\[1pt]
+  \small
+  Software Engineer $\;|\;$ Full-Stack Development \textbullet{} React.js/Node.js \textbullet{} REST APIs \textbullet{} AI-Assisted Development \\[1pt]
+  \href{mailto:lakshaypahwa47@gmail.com}{lakshaypahwa47@gmail.com} $\;|\;$
+  +91-6396339806 $\;|\;$
+  \href{https://github.com/pahwajii}{github.com/pahwajii} $\;|\;$
+  \href{https://linkedin.com/in/lakshay-pahwa-a45991251}{linkedin.com/in/lakshay-pahwa-a45991251}
+\par}
+
+\vspace{2pt}
+
+% ---- EDUCATION ----
+\section{Education}
+\vspace{1pt}
+\textbf{B.Tech in Computer Science \& Engineering} \hfill {2022 -- 2026} \\
+Bundelkhand Institute of Engineering \& Technology (BIET), Jhansi \hfill CGPA: 8.19/10.00
+
+% ---- SKILLS ----
+\section{Technical Skills}
+\vspace{2pt}
+\begin{tabular}{@{} >{\bfseries}l @{\hspace{2ex}} l}
+Languages       & JavaScript (ES6+), TypeScript, Java (academic), C++, SQL \\
+Web Frameworks  & React.js, Next.js, Node.js, Express.js, NestJS (familiar), REST API Design, MVC Architecture \\
+Databases       & MongoDB, MySQL, PostgreSQL, Firebase Firestore, Redis \\
+AI Tools \& Workflows & Claude Code, Cursor, GitHub Copilot, ChatGPT, Google Gemini, Google Antigravity, \\
+                & OpenAI API Integration, Prompt Engineering, AI-Assisted Debugging \& Code Review \\
+Security        & JWT Auth, RBAC Access Control, Webhook Signature Validation, Input Sanitization \\
+Tools           & Git, GitHub (PR reviews), Postman, Jest, Docker, Vercel, Render, AWS (basic) \\
+Practices       & Agile/Scrum, Code Reviews, Technical Documentation, Cross-functional Collaboration \\
+\end{tabular}
+
+% ---- WORK EXPERIENCE ----
+\section{Work Experience}
+\vspace{2pt}
+
+\textbf{SDE Intern --- Hanabi Technologies} \hfill Dec 2025 -- Feb 2026 \\[-10pt]
+\begin{itemize}
+  \item Built and shipped 6+ large-scale production RESTful APIs consumed by React-based client apps, quickly ramping up on an unfamiliar existing application portfolio to provide ongoing support.
+  \item Integrated OpenAI content-moderation API with robust error handling, retry logic, and input validation, applying secure development best practices to guard against malformed/malicious data.
+  \item Authored API contracts and 15+ Jest unit/integration test cases; actively participated in code reviews with senior engineers, giving and receiving constructive feedback before merging PRs.
+  \item Used AI coding tools (Claude Code, Cursor) to accelerate boilerplate generation and test scaffolding, manually reviewing and validating all AI-generated code before merge.
+\end{itemize}
+
+\vspace{2pt}
+\textbf{Developer Intern --- Good Dopamine Technologies Pvt. Ltd.} \hfill Nov 2025 -- Dec 2025 \\[-10pt]
+\begin{itemize}
+  \item Engineered Node.js/Express applications following MVC architecture for a collaborative video-editor platform; collaborated daily with a cross-functional team of developers and product managers.
+  \item Implemented RBAC permission handling (3 user roles) with security-conscious access-control logic; proactively documented processes and troubleshooting steps to support the wider team.
+\end{itemize}
+
+\vspace{2pt}
+\textbf{SDE Intern --- Veridia.io} \hfill Sept 2025 -- Oct 2025 \\[-10pt]
+\begin{itemize}
+  \item Investigated and resolved MySQL/MongoDB query bottlenecks in an unfamiliar production system, restructuring indexing strategies and cutting execution time by $\sim$20\%.
+  \item Proposed and implemented Redis caching as an alternative architecture to reduce response time by $\sim$15\%, presenting findings and recommendations to the team.
+\end{itemize}
+
+% ---- PROJECTS ----
+\section{Projects}
+\vspace{2pt}
+
+\textbf{Research Paper Reading Tracker} \hfill Feb 2026 \\[-3pt]
+{\small\textit{React $|$ TypeScript $|$ Node.js $|$ Express $|$ MySQL $|$ MongoDB $|$ JWT $|$ Recharts $|$ Vercel/Render}} \\[-10pt]
+\begin{itemize}
+  \item Designed and built a large-scale full-stack application end-to-end (frontend, REST backend, auth, analytics dashboards); deployed on Vercel + Render.
+  \item Implemented JWT-based authentication with per-user data isolation and wrote structured test cases covering auth, CRUD, and edge cases to minimize defects.
+\end{itemize}
+
+\vspace{2pt}
+\textbf{Post-It --- Real-Time Social Media Platform} \hfill Sept 2025 \\[-3pt]
+{\small\textit{Node.js $|$ Express.js $|$ MySQL $|$ MongoDB $|$ Socket.io $|$ jQuery $|$ AJAX $|$ HTML/CSS}} \\[-10pt]
+\begin{itemize}
+  \item Built a full-stack social platform with real-time WebSocket messaging (Socket.io) and a REST API backend supporting zero-reload feed and notification updates at scale.
+  \item Designed RESTful URL routing and dual MongoDB/MySQL data models to support future architectural growth and alternative storage strategies.
+\end{itemize}
+
+\vspace{2pt}
+\textbf{Subscription-based Payment System (Razorpay)} \hfill Jan 2026 \\[-3pt]
+{\small\textit{Node.js $|$ MySQL $|$ Razorpay API $|$ Webhooks $|$ Jest $|$ OOP}} \\[-10pt]
+\begin{itemize}
+  \item Built webhook-based payment reconciliation with signature verification, covering the full subscription lifecycle and reducing failed-transaction fallthrough by $\sim$40\%.
+  \item Documented 10+ API routes and maintained a shared knowledge base of failure modes, improving team troubleshooting speed across sprint cycles.
+\end{itemize}
+
+% ---- ACHIEVEMENTS ----
+\section{Achievements \& Certifications}
+\begin{itemize}
+  \item \textbf{GATE 2026 Qualified} \quad
+        \href{https://leetcode.com/u/lakshaypahwa/}{\textbf{LeetCode:}} Rating 1817 (Top 6\%), 300+ problems solved \quad
+        \textbf{CodeChef:} 3$\star$, Rating 1654
+  \item \textbf{TCS CodeVita S13} -- Global Rank 2028 (out of 100,000+ participants) \quad
+        \textbf{Oracle Cloud 2025} -- Data Science Professional \& AI Foundations Associate
+  \item \textbf{Secretary, T\&P Cell, BIET Jhansi} -- Led placement drives \& cross-team stakeholder communication for 200+ students
+\end{itemize}
+
+\end{document}
