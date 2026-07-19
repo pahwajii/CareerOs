@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-dark: #1e293b;
+      --indigo: #4f46e5;
+      --indigo-hover: #4338ca;
+      --indigo-light: #818cf8;
+      --text-white: #f8fafc;
+      --text-gray: #94a3b8;
+      --border-color: #334155;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      width: 380px;
+      background-color: var(--bg-dark);
+      color: var(--text-white);
+      padding: 18px;
+    }
+
+    /* Container */
+    .extension-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-b: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--text-white);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.025em;
+    }
+
+    .status-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background-color: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid var(--border-color);
+    }
+
+    .status-badge.connected {
+      background-color: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    /* Message banner */
+    .alert-banner {
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.4;
+      display: none;
+    }
+    
+    .alert-banner.info {
+      background-color: rgba(79, 70, 229, 0.15);
+      color: #a5b4fc;
+      border-left: 4px solid var(--indigo);
+    }
+
+    .alert-banner.error {
+      background-color: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+      border-left: 4px solid #ef4444;
+    }
+
+    /* Cards */
+    .card {
+      background-color: var(--card-dark);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-gray);
+    }
+
+    .job-details-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .job-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-white);
+      line-height: 1.3;
+    }
+
+    .job-company {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--indigo-light);
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease-in-out;
+      outline: none;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background-color: var(--indigo);
+      color: var(--text-white);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--indigo-hover);
+    }
+
+    .btn-primary:disabled {
+      background-color: #334155;
+      color: #64748b;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background-color: #334155;
+      color: #f1f5f9;
+      border: 1px solid #475569;
+    }
+
+    .btn-secondary:hover {
+      background-color: #475569;
+    }
+
+    /* Match Circle Meter */
+    .match-deck {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background-color: rgba(15, 23, 42, 0.3);
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(51, 65, 85, 0.5);
+    }
+
+    .match-score-value {
+      font-size: 28px;
+      font-weight: 900;
+      color: #10b981;
+    }
+
+    .match-score-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-gray);
+      line-height: 1.4;
+    }
+
+    /* Actions Panel */
+    .actions-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Loader icon spin animation */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+  <title>CareerOS Extension</title>
+</head>
+<body>
+  <div class="extension-wrapper">
+    <!-- Header -->
+    <div class="header">
+      <h1 class="brand-title">📘 CareerOS</h1>
+      <span id="authStatus" class="status-badge">Checking...</span>
+    </div>
+
+    <!-- Alert / Progress Logs Banner -->
+    <div id="alertBanner" class="alert-banner info"></div>
+
+    <!-- Main Controller Card -->
+    <div class="card">
+      <h2 class="section-title">Job Evaluation</h2>
+      <div id="jobDetailsContainer" style="display: none;" class="job-details-row">
+        <h3 id="scrapedTitle" class="job-title">Role Title</h3>
+        <p id="scrapedCompany" class="job-company">Company</p>
+      </div>
+
+      <button id="btnAnalyze" class="btn btn-primary" disabled>
+        <div class="spinner" id="analyzeSpinner"></div>
+        <span>🔍 Analyze with CareerOS</span>
+      </button>
+    </div>
+
+    <!-- Analysis Results Card (collapsible) -->
+    <div id="resultsCard" class="card" style="display: none;">
+      <h2 class="section-title">DeepSeek Match Analysis</h2>
+      
+      <div class="match-deck">
+        <span id="matchScoreVal" class="match-score-value">85%</span>
+        <div class="match-score-label">
+          Overall ATS Alignment.<br/>
+          Job added to CRM.
+        </div>
+      </div>
+
+      <!-- Action items -->
+      <div class="actions-panel">
+        <button id="btnTailorResume" class="btn btn-secondary">
+          <div class="spinner" id="tailorSpinner"></div>
+          <span>📄 Tailor Resume (Claude)</span>
+        </button>
+        <button id="btnCoverLetter" class="btn btn-secondary">
+          <div class="spinner" id="letterSpinner"></div>
+          <span>✉ Write Cover Letter (GPT)</span>
+        </button>
+        <button id="btnDashboard" class="btn btn-secondary">
+          <span>🚀 Open Dashboard</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

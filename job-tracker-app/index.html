@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="44014.jpg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CareerOS - Premium Career CRM & AI Resume Builder</title>
+    <meta name="description" content="Organize your job application pipeline with a premium Kanban board, calendar milestones, automatic AI resume tailoring, match analysis, and Claude study planners." />
+    <meta name="keywords" content="job tracker, career CRM, resume tailor, match analysis, cover letter generator, interview prep, applicant tracking system" />
+    <meta name="author" content="CareerOS team" />
+    <script>
+      (function() {
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
