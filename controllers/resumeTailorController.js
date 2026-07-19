@@ -1,348 +1,13 @@
 import fs from "fs"
 import path from "path"
+import { execSync } from "child_process"
 import PDFDocument from "pdfkit"
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx"
 import User from "../models/User.js"
 import Job from "../models/Job.js"
 import TailoredResume from "../models/TailoredResume.js"
 import aiOrchestrator from "../services/aiOrchestrator.js"
 
-/**
- * PDF inline bold markdown parsing text helper
- */
-function renderRichText(doc, text, fontSize, color, options = {}) {
-  doc.fontSize(fontSize).fillColor(color)
-  
-  const boldRegex = /\*\*(.*?)\*\*/g
-  let lastIndex = 0
-  let match
-  
-  while ((match = boldRegex.exec(text)) !== null) {
-    const precedingText = text.substring(lastIndex, match.index)
-    if (precedingText) {
-      doc.font("Helvetica").text(precedingText, { ...options, continued: true })
-    }
-    doc.font("Helvetica-Bold").text(match[1], { ...options, continued: true })
-    lastIndex = boldRegex.lastIndex
-  }
-  
-  const remainingText = text.substring(lastIndex)
-  doc.font("Helvetica").text(remainingText, { ...options, continued: false })
-}
-
-/**
- * DOCX inline bold markdown parsing text helper
- */
-function parseRichTextDocx(text, boldDefault = false) {
-  const runs = []
-  const parts = text.split("**")
-  parts.forEach((part, index) => {
-    const isBold = index % 2 !== 0
-    if (part) {
-      runs.push(
-        new TextRun({
-          text: part,
-          bold: isBold || boldDefault,
-          size: 17, // 8.5pt
-          color: "334155"
-        })
-      )
-    }
-  })
-  return runs
-}
-
-/**
- * Helper to write a clean PDF document conforming to the exact 1-page template
- */
-function generatePdfFile(filePath, contentText, user) {
-  // Margin 35 (or 30) for compact 1-page fit
-  const doc = new PDFDocument({ margin: 35, size: "A4" })
-  const writeStream = fs.createWriteStream(filePath)
-  doc.pipe(writeStream)
-
-  const pageWidth = doc.page.width - 70 // Width inside margins
-  const fontSize = 8.5
-
-  // 1. Render Header Title (Capitalized)
-  doc.fontSize(14).fillColor("#000000").font("Helvetica-Bold").text((user.name || "").toUpperCase(), { align: "center" })
-  
-  // 2. Render Headline Tagline
-  if (user.headline) {
-    doc.moveDown(0.15)
-    doc.fontSize(8.5).fillColor("#000000").font("Helvetica").text(user.headline, { align: "center" })
-  }
-
-  // 3. Render Contact information line
-  const contacts = []
-  if (user.email) contacts.push(user.email)
-  if (user.phone) contacts.push(user.phone)
-  if (user.codingProfiles?.github) {
-    contacts.push(user.codingProfiles.github.replace(/^https?:\/\/(www\.)?/, ""))
-  }
-  if (user.codingProfiles?.linkedin) {
-    contacts.push(user.codingProfiles.linkedin.replace(/^https?:\/\/(www\.)?/, ""))
-  }
-  if (user.codingProfiles?.portfolio) {
-    contacts.push("Portfolio")
-  }
-  
-  const contactText = contacts.join("   |   ")
-  if (contactText) {
-    doc.moveDown(0.15)
-    doc.fontSize(8).fillColor("#1d4ed8").font("Helvetica").text(contactText, { align: "center" })
-  }
-  
-  doc.moveDown(0.6)
-
-  // 4. Split and Render Body Lines
-  const lines = contentText.split("\n")
-  lines.forEach(line => {
-    const trimmed = line.trim()
-    if (!trimmed) {
-      doc.moveDown(0.2)
-      return
-    }
-
-    // Section Header (e.g. ## WORK EXPERIENCE)
-    if (trimmed.startsWith("##")) {
-      const title = trimmed.replace(/^##+\s*/, "").toUpperCase()
-      doc.moveDown(0.45)
-      doc.fontSize(9.5).fillColor("#000000").font("Helvetica-Bold").text(title, { align: "left" })
-      
-      // Draw thin horizontal separator line directly below heading
-      doc.moveDown(0.12)
-      doc.moveTo(35, doc.y).lineTo(doc.page.width - 35, doc.y).strokeColor("#cbd5e1").lineWidth(0.5).stroke()
-      doc.moveDown(0.25)
-    }
-    // Left-Right Split Items (e.g. Role :: Dates)
-    else if (trimmed.includes("::")) {
-      const parts = trimmed.split("::").map(p => p.trim())
-      const left = parts[0]
-      const right = parts[1] || ""
-      
-      const currentY = doc.y
-      doc.fontSize(8.5).fillColor("#000000").font("Helvetica-Bold")
-      doc.text(left, 35, currentY, { align: "left", width: pageWidth - 100 })
-      
-      doc.font("Helvetica")
-      doc.text(right, 35, currentY, { align: "right", width: pageWidth })
-      
-      doc.y = Math.max(doc.y, currentY + 11)
-    }
-    // Bullet Points
-    else if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
-      const bulletText = trimmed.replace(/^[-*]\s*/, "")
-      const currentY = doc.y
-      doc.fontSize(fontSize).fillColor("#334155").font("Helvetica").text("   •   ", 35, currentY, { continued: true })
-      renderRichText(doc, bulletText, fontSize, "#334155", { lineGap: 1.5 })
-    }
-    // Regular Lines
-    else {
-      renderRichText(doc, trimmed, fontSize, "#334155", { lineGap: 1.5 })
-    }
-  })
-
-  doc.end()
-}
-
-/**
- * Helper to write a clean DOCX document conforming to the exact 1-page template
- */
-function generateDocxFile(filePath, contentText, user) {
-  const lines = contentText.split("\n")
-  
-  // 1. Create Header Paragraphs
-  const paragraphs = [
-    new Paragraph({
-      alignment: "center",
-      children: [
-        new TextRun({
-          text: (user.name || "").toUpperCase(),
-          bold: true,
-          size: 28, // 14pt
-          color: "000000"
-        })
-      ]
-    })
-  ]
-
-  if (user.headline) {
-    paragraphs.push(
-      new Paragraph({
-        alignment: "center",
-        children: [
-          new TextRun({
-            text: user.headline,
-            size: 17, // 8.5pt
-            color: "000000"
-          })
-        ]
-      })
-    )
-  }
-
-  const contacts = []
-  if (user.email) contacts.push(user.email)
-  if (user.phone) contacts.push(user.phone)
-  if (user.codingProfiles?.github) {
-    contacts.push(user.codingProfiles.github.replace(/^https?:\/\/(www\.)?/, ""))
-  }
-  if (user.codingProfiles?.linkedin) {
-    contacts.push(user.codingProfiles.linkedin.replace(/^https?:\/\/(www\.)?/, ""))
-  }
-  if (user.codingProfiles?.portfolio) {
-    contacts.push("Portfolio")
-  }
-
-  const contactText = contacts.join("   |   ")
-  if (contactText) {
-    paragraphs.push(
-      new Paragraph({
-        alignment: "center",
-        children: [
-          new TextRun({
-            text: contactText,
-            size: 16, // 8pt
-            color: "1d4ed8"
-          })
-        ]
-      })
-    )
-  }
-
-  paragraphs.push(new Paragraph({ text: "" }))
-
-  // 2. Format Body Lines
-  lines.forEach(line => {
-    const trimmed = line.trim()
-    if (!trimmed) {
-      return
-    }
-
-    if (trimmed.startsWith("##")) {
-      const title = trimmed.replace(/^##+\s*/, "").toUpperCase()
-      paragraphs.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: title,
-              bold: true,
-              size: 19, // 9.5pt
-              color: "000000"
-            })
-          ],
-          border: {
-            bottom: {
-              color: "cbd5e1",
-              space: 4,
-              value: "single",
-              size: 6
-            }
-          }
-        })
-      )
-    } else if (trimmed.includes("::")) {
-      const parts = trimmed.split("::").map(p => p.trim())
-      const left = parts[0]
-      const right = parts[1] || ""
-      
-      paragraphs.push(
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          borders: {
-            top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-            bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
-            left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-            right: { style: BorderStyle.NONE, size: 0, color: "auto" },
-            insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
-            insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
-          },
-          rows: [
-            new TableRow({
-              children: [
-                new TableCell({
-                  width: { size: 75, type: WidthType.PERCENTAGE },
-                  children: [
-                    new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: left,
-                          bold: true,
-                          size: 17, // 8.5pt
-                          color: "000000"
-                        })
-                      ]
-                    })
-                  ]
-                }),
-                new TableCell({
-                  width: { size: 25, type: WidthType.PERCENTAGE },
-                  children: [
-                    new Paragraph({
-                      alignment: "right",
-                      children: [
-                        new TextRun({
-                          text: right,
-                          size: 17, // 8.5pt
-                          color: "000000"
-                        })
-                      ]
-                    })
-                  ]
-                })
-              ]
-            })
-          ]
-        })
-      )
-    } else if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
-      const bulletText = trimmed.replace(/^[-*]\s*/, "")
-      paragraphs.push(
-        new Paragraph({
-          children: [
-            new TextRun({ text: "  •   ", size: 17, color: "334155" }),
-            ...parseRichTextDocx(bulletText)
-          ]
-        })
-      )
-    } else {
-      paragraphs.push(
-        new Paragraph({
-          children: parseRichTextDocx(trimmed)
-        })
-      )
-    }
-  })
-
-  const doc = new Document({
-    sections: [
-      {
-        properties: {
-          page: {
-            margin: {
-              top: 720,    // 0.5 inches
-              bottom: 720, // 0.5 inches
-              left: 720,   // 0.5 inches
-              right: 720   // 0.5 inches
-            }
-          }
-        },
-        children: paragraphs
-      }
-    ]
-  })
-
-  Packer.toBuffer(doc).then(buffer => {
-    fs.writeFileSync(filePath, buffer)
-  })
-}
-
-/**
- * Helper to write a clean LaTeX document conforming to the exact user format
- */
-function generateTexFile(filePath, contentText, user) {
-  let tex = `\\documentclass[10pt,letterpaper]{article}
+const REFERENCE_LATEX_TEMPLATE = `\\documentclass[10pt,letterpaper]{article}
 
 \\usepackage[left=0.42in,top=0.25in,right=0.42in,bottom=0.25in]{geometry}
 \\usepackage{hyperref}
@@ -367,143 +32,161 @@ function generateTexFile(filePath, contentText, user) {
 
 % ---- HEADER ----
 {\\centering
-  {\\large \\textbf{${(user.name || "").toUpperCase()}}} \\\\[1pt]
+  {\\large \\textbf{LAKSHAY PAHWA}} \\\\[1pt]
   \\small
-  ${user.headline || "Software Engineer"} \\\\[1pt]
-`
+  Software Engineer $\\;|\\;$ Full-Stack Development \\textbullet{} React.js/Node.js \\textbullet{} REST APIs \\textbullet{} AI-Assisted Development \\\\[1pt]
+  \\href{mailto:lakshaypahwa47@gmail.com}{lakshaypahwa47@gmail.com} $\\;|\\;$
+  +91-6396339806 $\\;|\\;$
+  \\href{https://github.com/pahwajii}{github.com/pahwajii} $\\;|\\;$
+  \\href{https://linkedin.com/in/lakshay-pahwa-a45991251}{linkedin.com/in/lakshay-pahwa-a45991251}
+\\par}
 
-  // Contacts
-  const contacts = []
-  if (user.email) {
-    contacts.push(`\\href{mailto:${user.email}}{${user.email}}`)
-  }
-  if (user.phone) {
-    contacts.push(user.phone)
-  }
-  if (user.codingProfiles?.github) {
-    const gh = user.codingProfiles.github.replace(/^https?:\/\/(www\.)?/, "")
-    contacts.push(`\\href{${user.codingProfiles.github}}{${gh}}`)
-  }
-  if (user.codingProfiles?.linkedin) {
-    const li = user.codingProfiles.linkedin.replace(/^https?:\/\/(www\.)?/, "")
-    contacts.push(`\\href{${user.codingProfiles.linkedin}}{${li}}`)
-  }
-  if (user.codingProfiles?.portfolio) {
-    contacts.push(`\\href{${user.codingProfiles.portfolio}}{Portfolio}`)
-  }
+\\vspace{2pt}
 
-  tex += "  " + contacts.join(" $\\;|\\;$ ") + " \\\\\n\\par}\n\n\\vspace{2pt}\n"
+% ---- EDUCATION ----
+\\section{Education}
+\\vspace{1pt}
+\\textbf{B.Tech in Computer Science \\& Engineering} \\hfill {2022 -- 2026} \\\\
+Bundelkhand Institute of Engineering \\& Technology (BIET), Jhansi \\hfill CGPA: 8.19/10.00
 
-  // Body elements
-  const lines = contentText.split("\n")
-  let inItemize = false
-  let inSkillsTable = false
+% ---- SKILLS ----
+\\section{Technical Skills}
+\\vspace{2pt}
+\\begin{tabular}{@{} >{\\bfseries}l @{\\hspace{2ex}} l}
+Languages       & JavaScript (ES6+), TypeScript, Java (academic), C++, SQL \\\\
+Web Frameworks  & React.js, Next.js, Node.js, Express.js, NestJS (familiar), REST API Design, MVC Architecture \\\\
+Databases       & MongoDB, MySQL, PostgreSQL, Firebase Firestore, Redis \\\\
+AI Tools \\& Workflows & Claude Code, Cursor, GitHub Copilot, ChatGPT, Google Gemini, Google Antigravity, \\\\
+                & OpenAI API Integration, Prompt Engineering, AI-Assisted Debugging \\& Code Review \\\\
+Security        & JWT Auth, RBAC Access Control, Webhook Signature Validation, Input Sanitization \\\\
+Tools           & Git, GitHub (PR reviews), Postman, Jest, Docker, Vercel, Render, AWS (basic) \\\\
+Practices       & Agile/Scrum, Code Reviews, Technical Documentation, Cross-functional Collaboration \\\\
+\\end{tabular}
 
-  lines.forEach(line => {
-    const trimmed = line.trim()
-    if (!trimmed) {
-      return
-    }
+% ---- WORK EXPERIENCE ----
+\\section{Work Experience}
+\\vspace{2pt}
 
-    // Handle Section Header (e.g. ## EDUCATION or ## TECHNICAL SKILLS)
-    if (trimmed.startsWith("##")) {
-      if (inItemize) {
-        tex += "\\end{itemize}\n"
-        inItemize = false
-      }
-      if (inSkillsTable) {
-        tex += "\\end{tabular}\n"
-        inSkillsTable = false
-      }
-      
-      const title = trimmed.replace(/^##+\s*/, "").toUpperCase()
-      
-      let cleanTitle = title
-      if (title.includes("ACHIEVEMENTS")) {
-        cleanTitle = "Achievements \\& Certifications"
-      }
-      
-      tex += `\n% ---- ${cleanTitle.toUpperCase()} ----\n`
-      tex += `\\section{${cleanTitle}}\n`
-      if (cleanTitle.toLowerCase().includes("skills")) {
-        tex += "\\vspace{2pt}\n\\begin{tabular}{@{} >{\\bfseries}l @{\\hspace{2ex}} l}\n"
-        inSkillsTable = true
-      } else {
-        tex += "\\vspace{1pt}\n"
-      }
-    }
-    // Handle Skills list rows (e.g. **Languages**: JavaScript, TypeScript)
-    else if (inSkillsTable && trimmed.startsWith("**")) {
-      const parts = trimmed.split(":")
-      const left = parts[0].replace(/\*\*/g, "").trim()
-      const right = parts.slice(1).join(":").trim()
-      
-      const cleanRight = right.replace(/([&%$#_])/g, "\\$1")
-      tex += `${left} & ${cleanRight} \\\\\n`
-    }
-    // Handle split lines with :: (e.g. B.Tech in CS :: 2022 - 2026)
-    else if (trimmed.includes("::")) {
-      if (inItemize) {
-        tex += "\\end{itemize}\n"
-        inItemize = false
-      }
-      
-      const parts = trimmed.split("::").map(p => p.trim())
-      const left = parts[0].replace(/([&%$#_])/g, "\\$1")
-      const right = parts[1] || ""
-      
-      if (left.toLowerCase().includes("bundelkhand") || left.toLowerCase().includes("cgpa")) {
-        tex += `${left} \\hfill ${right} \n`
-      } else {
-        tex += `\\textbf{${left}} \\hfill {${right}} \\\\\n`
-      }
-    }
-    // Handle bullet points
-    else if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
-      if (inSkillsTable) {
-        tex += "\\end{tabular}\n"
-        inSkillsTable = false
-      }
-      if (!inItemize) {
-        tex += "\\begin{itemize}\n"
-        inItemize = true
-      }
-      
-      let bulletText = trimmed.replace(/^[-*]\s*/, "")
-      bulletText = bulletText.replace(/\*\*(.*?)\*\*/g, "\\textbf{$1}")
-      bulletText = bulletText.replace(/([&%$#_])/g, "\\$1")
-      
-      tex += `  \\item ${bulletText}\n`
-    }
-    // Handle regular description text (e.g. professional summary)
-    else {
-      if (inItemize) {
-        tex += "\\end{itemize}\n"
-        inItemize = false
-      }
-      if (inSkillsTable) {
-        tex += "\\end{tabular}\n"
-        inSkillsTable = false
-      }
-      const escaped = trimmed.replace(/([&%$#_])/g, "\\$1")
-      tex += `${escaped}\n`
-    }
-  })
+\\textbf{SDE Intern --- Hanabi Technologies} \\hfill Dec 2025 -- Feb 2026 \\\\[-10pt]
+\\begin{itemize}
+  \\item Built and shipped 6+ large-scale production RESTful APIs consumed by React-based client apps, quickly ramping up on an unfamiliar existing application portfolio to provide ongoing support.
+  \\item Integrated OpenAI content-moderation API with robust error handling, retry logic, and input validation, applying secure development best practices to guard against malformed/malicious data.
+  \\item Authored API contracts and 15+ Jest unit/integration test cases; actively participated in code reviews with senior engineers, giving and receiving constructive feedback before merging PRs.
+  \\item Used AI coding tools (Claude Code, Cursor) to accelerate boilerplate generation and test scaffolding, manually reviewing and validating all AI-generated code before merge.
+\\end{itemize}
 
-  if (inItemize) {
-    tex += "\\end{itemize}\n"
-  }
-  if (inSkillsTable) {
-    tex += "\\end{tabular}\n"
-  }
+\\vspace{2pt}
+\\textbf{Developer Intern --- Good Dopamine Technologies Pvt. Ltd.} \\hfill Nov 2025 -- Dec 2025 \\\\[-10pt]
+\\begin{itemize}
+  \\item Engineered Node.js/Express applications following MVC architecture for a collaborative video-editor platform; collaborated daily with a cross-functional team of developers and product managers.
+  \\item Implemented RBAC permission handling (3 user roles) with security-conscious access-control logic; proactively documented processes and troubleshooting steps to support the wider team.
+\\end{itemize}
 
-  tex += "\n\\end{document}\n"
+\\vspace{2pt}
+\\textbf{SDE Intern --- Veridia.io} \\hfill Sept 2025 -- Oct 2025 \\\\[-10pt]
+\\begin{itemize}
+  \\item Investigated and resolved MySQL/MongoDB query bottlenecks in an unfamiliar production system, restructuring indexing strategies and cutting execution time by $\\sim$20\\%.
+  \\item Proposed and implemented Redis caching as an alternative architecture to reduce response time by $\\sim$15\\%, presenting findings and recommendations to the team.
+\\end{itemize}
+
+% ---- PROJECTS ----
+\\section{Projects}
+\\vspace{2pt}
+
+\\textbf{Research Paper Reading Tracker} \\hfill Feb 2026 \\\\[-3pt]
+{\\small\\textit{React $|$ TypeScript $|$ Node.js $|$ Express $|$ MySQL $|$ MongoDB $|$ JWT $|$ Recharts $|$ Vercel/Render}} \\\\[-10pt]
+\\begin{itemize}
+  \\item Designed and built a large-scale full-stack application end-to-end (frontend, REST backend, auth, analytics dashboards); deployed on Vercel + Render.
+  \\item Implemented JWT-based authentication with per-user data isolation and wrote structured test cases covering auth, CRUD, and edge cases to minimize defects.
+\\end{itemize}
+
+\\vspace{2pt}
+\\textbf{Post-It --- Real-Time Social Media Platform} \\hfill Sept 2025 \\\ux[-3pt]
+{\\small\\textit{Node.js $|$ Express.js $|$ MySQL $|$ MongoDB $|$ Socket.io $|$ jQuery $|$ AJAX $|$ HTML/CSS}} \\\\[-10pt]
+\\begin{itemize}
+  \\item Built a full-stack social platform with real-time WebSocket messaging (Socket.io) and a REST API backend supporting zero-reload feed and notification updates at scale.
+  \\item Designed RESTful URL routing and dual MongoDB/MySQL data models to support future architectural growth and alternative storage strategies.
+\\end{itemize}
+
+\\vspace{2pt}
+\\textbf{Subscription-based Payment System (Razorpay)} \\hfill Jan 2026 \\\textsf{Node.js $|$ MySQL $|$ Razorpay API $|$ Webhooks $|$ Jest $|$ OOP} \\\\[-10pt]
+\\begin{itemize}
+  \\item Built webhook-based payment reconciliation with signature verification, covering the full subscription lifecycle and reducing failed-transaction fallthrough by $\\sim$40\\%.
+  \\item Documented 10+ API routes and maintained a shared knowledge base of failure modes, improving team troubleshooting speed across sprint cycles.
+\\end{itemize}
+
+% ---- ACHIEVEMENTS ----
+\\section{Achievements \\& Certifications}
+\\begin{itemize}
+  \\item \\textbf{GATE 2026 Qualified} \\quad
+        \\href{https://leetcode.com/u/lakshaypahwa/}{\\textbf{LeetCode:}} Rating 1817 (Top 6\\%), 300+ problems solved \\quad
+        \\textbf{CodeChef:} 3$\\star$, Rating 1654
+  \\item \\textbf{TCS CodeVita S13} -- Global Rank 2028 (out of 100,000+ participants) \\quad
+        \\textbf{Oracle Cloud 2025} -- Data Science Professional \\& AI Foundations Associate
+  \\item \\textbf{Secretary, T\\&P Cell, BIET Jhansi} -- Led placement drives \\& cross-team stakeholder communication for 200+ students
+\\end{itemize}
+
+\\end{document}`;
+
+/**
+ * Shell compilation helper using tectonic/pdflatex
+ */
+function compileTexToPdf(texPath, pdfPath) {
+  const dir = path.dirname(texPath)
   
-  fs.writeFileSync(filePath, tex)
+  try {
+    console.log(`LaTeX Compiler: Trying tectonic...`)
+    execSync(`tectonic "${texPath}" --outdir "${dir}"`, { stdio: "ignore", timeout: 60000 })
+    return true
+  } catch (err1) {
+    console.warn("Tectonic compilation failed or not installed. Trying pdflatex...", err1.message)
+    try {
+      execSync(`pdflatex -interaction=nonstopmode -output-directory="${dir}" "${texPath}"`, { stdio: "ignore", timeout: 60000 })
+      return true
+    } catch (err2) {
+      console.error("LaTeX compilation failed on all compilers. Creating fallback message PDF.")
+      try {
+        const fallbackDoc = new PDFDocument({ margin: 36 })
+        const stream = fs.createWriteStream(pdfPath)
+        fallbackDoc.pipe(stream)
+        fallbackDoc.fontSize(16).fillColor("#4f46e5").text("LaTeX Compilation Fallback Message", { underline: true })
+        fallbackDoc.moveDown()
+        fallbackDoc.fontSize(11).fillColor("#1e293b").text(
+          "Your tailored LaTeX (.tex) source code was generated successfully, but the PDF compilation failed because no LaTeX compiler (tectonic or pdflatex) was found on your local system PATH.\n\n" +
+          "To enable automatic PDF resume generation, please install tectonic or a LaTeX suite:\n" +
+          "- Windows: winget install Tectonic.Tectonic\n" +
+          "- macOS: brew install tectonic\n" +
+          "- Linux: sudo apt install tectonic\n\n" +
+          "Alternatively, you can download the tailored LaTeX (.tex) file from your dashboard and paste it into Overleaf.com to compile your resume online.",
+          { lineGap: 4 }
+        )
+        fallbackDoc.end()
+        return false
+      } catch (pdfError) {
+        console.error("Failed to write fallback PDF:", pdfError)
+        return false
+      }
+    }
+  }
 }
 
 /**
- * Trigger AI Resume Tailoring pipeline using Claude Sonnet Thinking
+ * Shell conversion helper using pandoc
+ */
+function convertTexToDocx(texPath, docxPath) {
+  try {
+    console.log(`Pandoc Converter: Compiling to DOCX...`)
+    execSync(`pandoc "${texPath}" -o "${docxPath}"`, { stdio: "ignore", timeout: 30000 })
+    return true
+  } catch (err) {
+    console.warn("Pandoc is not installed or conversion failed. Creating fallback warning message.")
+    fs.writeFileSync(docxPath, "Pandoc is required to generate Word (.docx) files from LaTeX. Please install pandoc: winget install JohnMacFarlane.Pandoc")
+    return false
+  }
+}
+
+/**
+ * Trigger AI Resume Tailoring pipeline using LaTeX Ground-Truth template
  * POST /api/resume/tailor
  */
 export async function tailorResume(req, res, next) {
@@ -537,59 +220,92 @@ export async function tailorResume(req, res, next) {
     }
 
     const prompt = `
-You are an expert ATS resume optimizer and professional writer.
-Tailor the user's Master Career Profile specifically to target the provided Job description.
-Your goal is to optimize the resume content to fit STRICTLY ON A SINGLE PAGE (A4 format).
+You are an expert ATS resume optimizer and LaTeX resume editor.
 
-To ensure high-quality layout parsing, you MUST output the "tailoredText" field in the EXACT structure specified below:
+You will be given:
+1. A REFERENCE LATEX TEMPLATE — this is the user's exact, approved one-page resume format.
+2. The user's Master Career Profile (JSON) — the full, factual source of truth for their experience.
+3. A Target Job Description.
 
-1. DO NOT output any contact info or header tags (Name, email, links, tagline) in the text itself. The PDF/DOCX generator will render the header automatically.
-2. Structure the resume sections using exactly '## SECTION NAME'.
-3. The sections MUST be ordered exactly as:
-   ## PROFESSIONAL SUMMARY
-   ## EDUCATION
-   ## TECHNICAL SKILLS
-   ## WORK EXPERIENCE
-   ## PROJECTS
-   ## ACHIEVEMENTS & CERTIFICATIONS
+Your task: produce a NEW, COMPLETE LaTeX document that is a content-tailored version of the
+REFERENCE LATEX TEMPLATE, optimized for the Target Job Description.
 
-4. For Education, Experience, and Projects, use a special double-colon separator '::' to place dates/locations on the right margin.
-   For example:
-   * Under EDUCATION:
-     B.Tech in Computer Science & Engineering :: 2022 – 2026
-     Bundelkhand Institute of Engineering & Technology (BIET), Jhansi :: CGPA: 8.19/10.00
-   * Under WORK EXPERIENCE:
-     Software Engineer Intern — Hanabi Technologies :: Dec 2025 – Feb 2026
-   * Under PROJECTS:
-     Research Paper Reading Tracker :: Feb 2026
+═══════════════════════════════════════════
+STRUCTURAL RULES — DO NOT VIOLATE
+═══════════════════════════════════════════
+1. Preserve the LaTeX preamble EXACTLY as given (\\documentclass, all \\usepackage lines,
+   \\hypersetup, \\titleformat, \\titlespacing, \\setlist, \\pagestyle, margins). Do not add,
+   remove, or reorder packages or settings.
+2. Preserve the exact section order:
+   Education → Technical Skills → Work Experience → Projects → Achievements & Certifications
+   (add "Professional Summary" only if the reference template has it — otherwise omit it,
+   since the reference template above does not use one).
+3. Preserve every formatting macro pattern exactly as demonstrated in the reference, including:
+   - \\[-10pt] placed immediately after a bold title/date line, before \\begin{itemize}
+   - \\vspace{2pt} between job/project entries and between major sections
+   - \\textbf{...} \\hfill {...} pattern for title-left / date-right lines
+   - {\\small\\textit{...}} tech-stack line under each project title, separated by $|$
+   - The \\begin{tabular}{@{} >{\\bfseries}l @{\\hspace{2ex}} l} ... \\end{tabular} structure
+     for Technical Skills (category bold, left column; values, right column)
+   - Achievement bullets grouped with \\textbf{} sub-labels the same way as the reference
+4. Preserve the header block verbatim in structure (name centered/bold, headline, contact line
+   with $\\;|\\;$ separators and \\href for email/github/linkedin) — only substitute the actual
+   values (name, headline, email, phone, links) from the user's profile if provided; otherwise
+   keep the reference header values.
+5. Output ONLY valid, compilable LaTeX — the full document from \\documentclass to \\end{document}.
+   No markdown, no code fences, no commentary before or after.
+6. Escape LaTeX special characters (&, %, $, #, _) in any user content you insert.
+7. The result MUST fit on a single A4 page at 10pt with the given margins — this is non-negotiable.
+   Trim, shorten, or drop lower-priority bullets/projects/achievements as needed to guarantee
+   single-page fit, prioritizing content most relevant to the Target Job Description.
 
-5. For technical skills, format it as category bold lists:
-   **Programming**: JavaScript (ES6+), TypeScript, C++, DSA
-   **Frontend**: React.js, HTML5, CSS3, jQuery, AJAX
-   **Backend**: Node.js, Express.js, REST API Design, Webhooks
-   **Databases**: MongoDB, MySQL, PostgreSQL, Redis
+═══════════════════════════════════════════
+CONTENT RULES — WHAT YOU MAY CHANGE
+═══════════════════════════════════════════
+- Headline tagline: adapt to mirror the target role's title/keywords.
+- Technical Skills table: reorder rows/values and re-select which skills are surfaced (from the
+  user's actual skills only) to match JD keywords; do not invent skills or tools not present in
+  the Master Career Profile.
+- Work Experience: you may reorder bullets within a role by relevance, rewrite bullet phrasing
+  for impact and JD-keyword alignment, and bold key technologies — but max 3-4 bullets per role,
+  and every bullet must trace back to something factually present in the profile. Never invent
+  metrics, technologies, or responsibilities.
+- Projects: select and order projects by relevance to the JD (drop least-relevant projects
+  first if space is tight); rewrite bullets the same way as Work Experience.
+- Achievements & Certifications: reorder/trim by relevance; do not invent credentials.
+- You may compress or expand \\vspace values by no more than ±1pt if needed for single-page fit,
+  but do not remove them entirely.
 
-6. Bullet points inside Experience and Projects MUST be brief, high-impact, starting with action verbs, and have **bolding** applied on key projects/technologies. Max 3 bullet points per experience/project.
-   Example:
-   - Applied software engineering practices to design, develop, and maintain 6+ RESTful APIs consumed by **React** client apps.
+Factual correctness is mandatory. Only rephrase, restructure, reorder, or select from EXISTING
+items in the Master Career Profile. Never fabricate experience, skills, metrics, or credentials.
 
-Factual correctness is mandatory: only rephrase, restructure, or prioritize existing items. Never invent experiences or skills. Keep descriptions highly concise to avoid line wraps and guarantee everything fits onto a single page.
+═══════════════════════════════════════════
+REFERENCE LATEX TEMPLATE
+═══════════════════════════════════════════
+${REFERENCE_LATEX_TEMPLATE}
 
-User Master Career Profile:
+═══════════════════════════════════════════
+USER MASTER CAREER PROFILE (JSON)
+═══════════════════════════════════════════
 ${JSON.stringify(profilePayload)}
 
-Target Job Details:
+═══════════════════════════════════════════
+TARGET JOB
+═══════════════════════════════════════════
 Company: ${job.company}
 Position: ${job.role}
 Job Description:
 ${job.jobDescription}
 
-Perform the tailoring and output a single JSON object containing:
-1. "tailoredText": The formatted tailored resume text following the instructions above.
-2. "atsScore": An integer (0-100) representing the match score of this tailored resume.
-3. "keywordCoverage": An array of strings representing JD keywords successfully mapped.
-4. "missingSkills": An array of strings representing JD skills that are still missing.
-5. "suggestions": An array of strings containing actionable feedback and rephrasing explanations.
+═══════════════════════════════════════════
+OUTPUT
+═══════════════════════════════════════════
+Return a single JSON object with these fields:
+1. "tailoredLatex": the complete tailored .tex document, base64-encoded as a string (to prevent JSON parsing conflicts with backslashes and newlines).
+2. "atsScore": integer 0-100, match score of this tailored resume against the JD.
+3. "keywordCoverage": array of JD keywords successfully mapped into the resume.
+4. "missingSkills": array of JD-relevant skills the user's profile does not support.
+5. "suggestions": array of actionable feedback strings.
 
 Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include markdown code block tags.
 `
@@ -611,9 +327,24 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
       const sanitized = cleaned.replace(/\\(?!["\\/bfnrtu])/g, "\\\\")
       parsed = JSON.parse(sanitized)
     } catch (parseError) {
-      console.error("Failed to parse Claude resume tailoring response:", cleaned, parseError)
+      console.error("Failed to parse AI resume tailoring response:", cleaned, parseError)
       return res.status(500).json({
         message: "Failed to parse AI tailoring response. Please try again.",
+        rawResponse
+      })
+    }
+
+    // Decode tailored LaTeX content from base64
+    let tailoredLatex = ""
+    try {
+      if (!parsed.tailoredLatex) {
+        throw new Error("Missing tailoredLatex field in response")
+      }
+      tailoredLatex = Buffer.from(parsed.tailoredLatex, "base64").toString("utf-8")
+    } catch (decodeError) {
+      console.error("Failed to decode base64 LaTeX content:", parsed.tailoredLatex, decodeError)
+      return res.status(500).json({
+        message: "Failed to decode base64 LaTeX content from AI response.",
         rawResponse
       })
     }
@@ -632,10 +363,12 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
     const docxPath = path.join(dir, docxFileName)
     const texPath = path.join(dir, texFileName)
 
-    // Generate physical documents with user info block
-    generatePdfFile(pdfPath, parsed.tailoredText || "", user)
-    generateDocxFile(docxPath, parsed.tailoredText || "", user)
-    generateTexFile(texPath, parsed.tailoredText || "", user)
+    // Write LaTeX source file to disk
+    fs.writeFileSync(texPath, tailoredLatex)
+
+    // Compile and convert
+    compileTexToPdf(texPath, pdfPath)
+    convertTexToDocx(texPath, docxPath)
 
     // Store in TailoredResume collection
     const tailored = new TailoredResume({
@@ -643,7 +376,7 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
       job: jobId,
       company: job.company,
       position: job.role,
-      tailoredText: parsed.tailoredText,
+      tailoredText: tailoredLatex,
       atsScore: parsed.atsScore || 50,
       keywordCoverage: parsed.keywordCoverage || [],
       missingSkills: parsed.missingSkills || [],
@@ -673,7 +406,7 @@ export async function getTailoredHistories(req, res, next) {
       user: req.userId,
       job: jobId
     }).sort({ createdAt: -1 })
-    
+
     res.json(histories)
   } catch (error) {
     next(error)
@@ -751,4 +484,3 @@ export async function downloadTex(req, res, next) {
     next(error)
   }
 }
-
