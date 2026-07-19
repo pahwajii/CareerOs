@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "CareerOS - AI Resume Copilot & Job Tracker",
+  "version": "1.0.0",
+  "description": "Automatically scrapes listing details from LinkedIn, Greenhouse, Lever, Ashby, and company career pages, calculates DeepSeek AI match alignments, and auto-tailors documents.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:5000/*",
+    "http://localhost:5173/*",
+    "https://*.linkedin.com/*",
+    "https://*.greenhouse.io/*",
+    "https://*.lever.co/*",
+    "https://*.ashbyhq.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

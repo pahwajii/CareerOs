@@ -1,0 +1,22 @@
+{
+  "name": "jobtracker-app-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "job-tracker-app"
+  ],
+  "scripts": {
+    "install-all": "npm install",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w job-tracker-app",
+    "dev": "npx concurrently --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "dependencies": {
+    "react-router-dom": "^7.7.1",
+    "recharts": "^3.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
