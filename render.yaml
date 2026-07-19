@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: careeros-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FORGE_API_KEY
+        sync: false
+    healthCheckPath: /api/health

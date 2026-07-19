@@ -68,8 +68,14 @@ app.use("/api/automate", automateRoutes)
 
 // Root Endpoint
 app.get("/", (req, res) => {
-  res.json({ message: "Job Tracker API is running..." })
+  res.json({ message: "CareerOS API is running..." })
 })
+
+// Health check endpoint for Render
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok", uptime: process.uptime() })
+})
+
 
 // Centralized Global Error Handler Middleware
 app.use(errorHandler)
