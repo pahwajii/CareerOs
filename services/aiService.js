@@ -53,7 +53,7 @@ class AIService {
    */
   async _executeRequest(apiKey, baseUrl, model, messages, temperature) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30-second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 90000) // 90-second timeout (1.5 minutes)
 
     try {
       const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -87,7 +87,7 @@ class AIService {
     } catch (error) {
       clearTimeout(timeoutId)
       if (error.name === "AbortError") {
-        console.error("AI Service Timeout: The request took longer than 30 seconds.")
+        console.error("AI Service Timeout: The request took longer than 90 seconds.")
         throw new Error("The AI service request timed out. Please try again.")
       }
       console.error("AI Service Exception:", error.message)
