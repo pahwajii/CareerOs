@@ -1,19 +1,64 @@
-# CareerOS: AI-Powered Job Application & Interview Prep Suite
+# CareerOS: AI-Powered Job Application & Career Management Suite
 
-CareerOS (Career Manager) is a production-grade, full-stack application designed to help software engineers track, analyze, and optimize their job applications. By leveraging state-of-the-art Large Language Models (LLMs) alongside a deterministic rendering pipeline, CareerOS simplifies the job search process from profile creation to final interview preparation.
+CareerOS is a production-grade, full-stack application designed to help software engineers track, analyze, and optimize their entire job search. From automatically capturing job listings to AI-tailored resumes and full interview preparation, CareerOS covers every stage of the career pipeline.
 
 ---
 
 ## 📸 Core Features & Walkthrough
 
-### 1. AI Match & Tailor Engine
-Before tailoring your resume, the matching engine evaluates the compatibility between your **Master Career Profile** and the **Target Job Description**. 
+### 1. 📋 Career Application CRM — Job Tracker
+
+The heart of CareerOS is a fully-featured **Job Tracker** that works as a personal career CRM. Every job application you're managing lives here, viewable in four distinct modes:
+
+#### 🗂 Kanban Board
+Drag-and-drop pipeline view organized by application stage — **Saved → Applied → OA → Interviewing → HR Round → Offer → Rejected → Withdrawn**. Get an instant visual overview of where every application stands.
+
+![Kanban Board View](screenshots/kanban_board.png)
+
+#### 📋 List View
+A clean, compact list of all applications showing company, role, expected salary, and status badge at a glance.
+
+![List View](screenshots/list_view.png)
+
+#### 📅 Calendar View
+See every application event, deadline, and interview pinned on a monthly calendar — never miss a follow-up date again.
+
+![Calendar View](screenshots/calendar_view.png)
+
+#### 📊 Analytics Dashboard
+Deep-dive into your job search metrics:
+* **Conversion Stages Funnel** — Visual breakdown of how many applications are at each stage with percentages.
+* **Salary Statistics** — Average and maximum expected salary across all active applications.
+* **Location Mix** — Distribution of Remote / Hybrid / Onsite opportunities.
+
+![Analytics Dashboard](screenshots/analytics.png)
+
+---
+
+### 2. ⚡ AI Job Description Extraction (Auto-Fill)
+
+Paste any raw job description text into the **"New Application"** form and click **Extract with AI**. The AI parses the JD and automatically populates:
+- **Company Name**, **Role / Position**
+- **Location**, **Work Type** (Remote / Hybrid / Onsite)
+- **Salary Range** (if mentioned)
+- **Key Requirements** and **Tech Stack**
+
+No manual entry required — one paste fills the entire form.
+
+---
+
+### 3. 🎯 AI Match & Tailor Engine
+
+Before tailoring your resume, the matching engine evaluates the compatibility between your **Master Career Profile** and the **Target Job Description**.
 * **Match Metrics:** Generates detailed compatibility scores across Skills, Experience, Projects, and Education.
 * **Gap Analysis:** Instantly surfaces missing keywords and gap areas (e.g., specific languages, DevOps practices, cloud services) to help you understand what's missing.
 
 ![AI Match Insights](screenshots/media__1784454369495.png)
 
-### 2. Intelligent Resume Tailoring
+---
+
+### 4. 📄 Intelligent Resume Tailoring
+
 Tailor your experience specifically for a target job application at the click of a button.
 * **ATS Score Optimization:** The AI rephrases and highlights experience points, yielding high ATS compatibility.
 * **Multi-Format Export:** Downloads the tailored resume in three distinct formats:
@@ -23,7 +68,10 @@ Tailor your experience specifically for a target job application at the click of
 
 ![Resume Tailoring Dashboard](screenshots/media__1784454369347.png)
 
-### 3. Interactive Interview Preparation
+---
+
+### 5. 🎤 Interactive Interview Preparation
+
 Once you apply, CareerOS builds tailored preparation modules.
 * **Tailored Decks:** Modules covering Company Research, Behavioral Questions, Resume-specific Q&A, and Coding.
 * **System Design & DSA Cheat Sheets:** Access interactive block diagrams, system architectures, and core DSA revision guides.
@@ -61,12 +109,13 @@ graph TD
 
 ### LLM Choices: Division of Labor
 * **Claude 3.5 Sonnet (Premium):** Chosen for resume tailoring, writing outreach messages, and structuring interview preparation guides. Its superior capability in linguistic synthesis ensures that rewritten resume bullets sound natural, have impact, and align with job descriptions without fabricating facts.
-* **Gemini 1.5 Pro / Flash:** Utilized for high-speed resume parsing, structured data extraction from Master Career Profiles, and rapid keyword gap analysis.
+* **Gemini 1.5 Pro / Flash:** Utilized for high-speed resume parsing, structured data extraction from Master Career Profiles, rapid keyword gap analysis, and **job description auto-extraction**.
 
 ### Prompt Engineering Patterns
 Our prompt engineering rules are designed to prevent AI hallucinations and keep formatting safe:
 * **Factual Grounding:** Prompts explicitly prohibit the fabrication of metrics, experiences, or credentials. The AI is limited to choosing, sorting, and rephrasing facts present in the user's Master Profile JSON.
 * **JSON-Only Response Instruction:** Prompts end with strict instructions to return raw, unescaped JSON without markdown code fences to prevent JSON parsing errors.
+* **Structured Extraction:** For job description parsing, a strict output schema forces the model to extract only explicitly stated facts (salary, location, role) — never infer or fabricate.
 
 ---
 
@@ -85,7 +134,8 @@ Create a `.env` file inside the `backend/` directory:
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_signing_secret
-FORGE_API_KEY=your_gemini_or_claud_orchestrator_key
+FORGE_API_KEY=your_gemini_or_claude_orchestrator_key
+CLIENT_URL=http://localhost:5173
 ```
 
 ### 2. Install All Dependencies
@@ -101,3 +151,16 @@ npm run dev
 ```
 
 The server will be up on [http://localhost:5000](http://localhost:5000), and the React web app will open automatically on [http://localhost:5173](http://localhost:5173).
+
+---
+
+## 🌐 Deployment
+
+CareerOS is deployed using a split-hosting strategy:
+
+| Layer | Platform | Notes |
+|---|---|---|
+| **Backend** (Express + MongoDB + Puppeteer) | [Render](https://render.com) | Node runtime, supports headless Chrome |
+| **Frontend** (Vite + React) | [Vercel](https://vercel.com) | Zero-config Vite builds, global CDN |
+
+Environment variables are configured in each platform's dashboard — never committed to source control.
