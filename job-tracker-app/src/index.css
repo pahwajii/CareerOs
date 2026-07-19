@@ -29,7 +29,31 @@
   ::-webkit-scrollbar-thumb {
     @apply bg-gray-300 dark:bg-slate-800 rounded-full hover:bg-gray-400 dark:hover:bg-slate-700 transition;
   }
+
+  /* Fix browser autofill overriding input background colors (Chrome/Edge dark navy bug) */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    /* Light mode: force white background */
+    -webkit-box-shadow: 0 0 0 1000px white inset !important;
+    -webkit-text-fill-color: #0f172a !important;
+    caret-color: #0f172a;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  /* Dark mode autofill override */
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus,
+  .dark input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #0f172a inset !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    caret-color: #f1f5f9;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 }
+
 
 /* Custom animations helper classes */
 @keyframes scaleUp {
