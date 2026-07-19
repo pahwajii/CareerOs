@@ -55,6 +55,10 @@ const tailoredResumeSchema = new mongoose.Schema(
     modelUsed: {
       type: String,
       default: "claude-sonnet-4-6"
+    },
+    pdfCompiled: {
+      type: Boolean,
+      default: false
     }
   },
   { timestamps: true }

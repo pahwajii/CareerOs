@@ -1,6 +1,7 @@
 import fs from "fs"
 import path from "path"
 import { execSync } from "child_process"
+import mongoose from "mongoose"
 import PDFDocument from "pdfkit"
 import User from "../models/User.js"
 import Job from "../models/Job.js"
@@ -101,7 +102,7 @@ Practices       & Agile/Scrum, Code Reviews, Technical Documentation, Cross-func
 \\end{itemize}
 
 \\vspace{2pt}
-\\textbf{Post-It --- Real-Time Social Media Platform} \\hfill Sept 2025 \\\ux[-3pt]
+\\textbf{Post-It --- Real-Time Social Media Platform} \\hfill Sept 2025 \\\\[-3pt]
 {\\small\\textit{Node.js $|$ Express.js $|$ MySQL $|$ MongoDB $|$ Socket.io $|$ jQuery $|$ AJAX $|$ HTML/CSS}} \\\\[-10pt]
 \\begin{itemize}
   \\item Built a full-stack social platform with real-time WebSocket messaging (Socket.io) and a REST API backend supporting zero-reload feed and notification updates at scale.
@@ -109,7 +110,8 @@ Practices       & Agile/Scrum, Code Reviews, Technical Documentation, Cross-func
 \\end{itemize}
 
 \\vspace{2pt}
-\\textbf{Subscription-based Payment System (Razorpay)} \\hfill Jan 2026 \\\textsf{Node.js $|$ MySQL $|$ Razorpay API $|$ Webhooks $|$ Jest $|$ OOP} \\\\[-10pt]
+\\textbf{Subscription-based Payment System (Razorpay)} \\hfill Jan 2026 \\\\[-3pt]
+{\\small\\textit{Node.js $|$ MySQL $|$ Razorpay API $|$ Webhooks $|$ Jest $|$ OOP}} \\\\[-10pt]
 \\begin{itemize}
   \\item Built webhook-based payment reconciliation with signature verification, covering the full subscription lifecycle and reducing failed-transaction fallthrough by $\\sim$40\\%.
   \\item Documented 10+ API routes and maintained a shared knowledge base of failure modes, improving team troubleshooting speed across sprint cycles.
@@ -133,18 +135,32 @@ Practices       & Agile/Scrum, Code Reviews, Technical Documentation, Cross-func
  */
 function compileTexToPdf(texPath, pdfPath) {
   const dir = path.dirname(texPath)
+  const baseName = path.basename(texPath, ".tex")
+  
+  const cleanupFiles = () => {
+    // Auxiliary files cleanup to prevent directory pollution
+    const auxPath = path.join(dir, `${baseName}.aux`)
+    const logPath = path.join(dir, `${baseName}.log`)
+    const outPath = path.join(dir, `${baseName}.out`)
+    if (fs.existsSync(auxPath)) fs.unlinkSync(auxPath)
+    if (fs.existsSync(logPath)) fs.unlinkSync(logPath)
+    if (fs.existsSync(outPath)) fs.unlinkSync(outPath)
+  }
   
   try {
     console.log(`LaTeX Compiler: Trying tectonic...`)
     execSync(`tectonic "${texPath}" --outdir "${dir}"`, { stdio: "ignore", timeout: 60000 })
+    cleanupFiles()
     return true
   } catch (err1) {
     console.warn("Tectonic compilation failed or not installed. Trying pdflatex...", err1.message)
     try {
       execSync(`pdflatex -interaction=nonstopmode -output-directory="${dir}" "${texPath}"`, { stdio: "ignore", timeout: 60000 })
+      cleanupFiles()
       return true
     } catch (err2) {
       console.error("LaTeX compilation failed on all compilers. Creating fallback message PDF.")
+      cleanupFiles()
       try {
         const fallbackDoc = new PDFDocument({ margin: 36 })
         const stream = fs.createWriteStream(pdfPath)
@@ -179,8 +195,7 @@ function convertTexToDocx(texPath, docxPath) {
     execSync(`pandoc "${texPath}" -o "${docxPath}"`, { stdio: "ignore", timeout: 30000 })
     return true
   } catch (err) {
-    console.warn("Pandoc is not installed or conversion failed. Creating fallback warning message.")
-    fs.writeFileSync(docxPath, "Pandoc is required to generate Word (.docx) files from LaTeX. Please install pandoc: winget install JohnMacFarlane.Pandoc")
+    console.warn("Pandoc is not installed or conversion failed. Skipping DOCX generation.", err.message)
     return false
   }
 }
@@ -195,6 +210,11 @@ export async function tailorResume(req, res, next) {
   try {
     if (!jobId) {
       return res.status(400).json({ message: "jobId is required for tailoring." })
+    }
+
+    // Defense-in-depth shell injection surface safety check
+    if (!mongoose.Types.ObjectId.isValid(jobId)) {
+      return res.status(400).json({ message: "Invalid jobId format. Must be a valid MongoDB ObjectId." })
     }
 
     const job = await Job.findOne({ _id: jobId, user: req.userId })
@@ -367,8 +387,8 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
     fs.writeFileSync(texPath, tailoredLatex)
 
     // Compile and convert
-    compileTexToPdf(texPath, pdfPath)
-    convertTexToDocx(texPath, docxPath)
+    const pdfSuccess = compileTexToPdf(texPath, pdfPath)
+    const docxSuccess = convertTexToDocx(texPath, docxPath)
 
     // Store in TailoredResume collection
     const tailored = new TailoredResume({
@@ -382,9 +402,10 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
       missingSkills: parsed.missingSkills || [],
       suggestions: parsed.suggestions || [],
       pdfFileName,
-      docxFileName,
+      docxFileName: docxSuccess ? docxFileName : "", // Only store docxFileName if Pandoc compiled it successfully
       texFileName,
-      modelUsed: useModel || "claude-sonnet-4-6"
+      modelUsed: useModel || "claude-sonnet-4-6",
+      pdfCompiled: pdfSuccess
     })
 
     await tailored.save()
@@ -402,6 +423,10 @@ export async function getTailoredHistories(req, res, next) {
   const { jobId } = req.params
 
   try {
+    if (!mongoose.Types.ObjectId.isValid(jobId)) {
+      return res.status(400).json({ message: "Invalid jobId format." })
+    }
+
     const histories = await TailoredResume.find({
       user: req.userId,
       job: jobId
@@ -421,6 +446,10 @@ export async function downloadPdf(req, res, next) {
   const { id } = req.params
 
   try {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid document ID format." })
+    }
+
     const tailored = await TailoredResume.findOne({ _id: id, user: req.userId })
     if (!tailored || !tailored.pdfFileName) {
       return res.status(404).json({ message: "PDF document not found." })
@@ -445,9 +474,13 @@ export async function downloadDocx(req, res, next) {
   const { id } = req.params
 
   try {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid document ID format." })
+    }
+
     const tailored = await TailoredResume.findOne({ _id: id, user: req.userId })
     if (!tailored || !tailored.docxFileName) {
-      return res.status(404).json({ message: "DOCX document not found." })
+      return res.status(404).json({ message: "DOCX document not found. Pandoc is required on the server to generate DOCX resumes." })
     }
 
     const filePath = path.join("uploads", "tailored", tailored.docxFileName)
@@ -469,6 +502,10 @@ export async function downloadTex(req, res, next) {
   const { id } = req.params
 
   try {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid document ID format." })
+    }
+
     const tailored = await TailoredResume.findOne({ _id: id, user: req.userId })
     if (!tailored || !tailored.texFileName) {
       return res.status(404).json({ message: "LaTeX document not found." })
