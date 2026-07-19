@@ -172,8 +172,9 @@ Return ONLY valid raw JSON. Do not include markdown code fences.
       await renderHtmlToPdf(html, pdfPath)
       pdfSuccess = true
     } catch (pdfError) {
-      console.error("PDF rendering failed:", pdfError.message)
-      return res.status(500).json({ message: "PDF generation failed.", error: pdfError.message })
+      // Log but do NOT abort — save the record so the user sees output.
+      // PDF may fail on environments without headless Chrome (e.g. fresh Render deploy).
+      console.error("PDF rendering failed (continuing without PDF):", pdfError.message)
     }
 
     // Generate DOCX file via html-to-docx
@@ -199,7 +200,7 @@ Return ONLY valid raw JSON. Do not include markdown code fences.
       pdfFileName,
       docxFileName: docxSuccess ? docxFileName : "",
       texFileName: texSuccess ? texFileName : "",
-      modelUsed: useModel || "claude-sonnet-4-6",
+      modelUsed: useModel || "gpt-5.6-sol",
       pdfCompiled: pdfSuccess
     })
 
