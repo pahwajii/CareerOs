@@ -152,7 +152,8 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
     }
 
     try {
-      const parsed = JSON.parse(cleaned)
+      const sanitized = cleaned.replace(/\\(?!["\\/bfnrtu])/g, "\\\\")
+      const parsed = JSON.parse(sanitized)
       res.json(parsed)
     } catch (parseError) {
       console.error("Failed to parse DeepSeek matching response:", cleaned, parseError)
@@ -206,7 +207,8 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
     }
 
     try {
-      const parsed = JSON.parse(cleaned)
+      const sanitized = cleaned.replace(/\\(?!["\\/bfnrtu])/g, "\\\\")
+      const parsed = JSON.parse(sanitized)
       res.json(parsed)
     } catch (parseError) {
       console.error("Failed to parse Gemini job parsing response:", cleaned, parseError)

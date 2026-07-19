@@ -80,7 +80,8 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
 
     let parsed
     try {
-      parsed = JSON.parse(cleaned)
+      const sanitized = cleaned.replace(/\\(?!["\\/bfnrtu])/g, "\\\\")
+      parsed = JSON.parse(sanitized)
     } catch (parseError) {
       console.error("Failed to parse Claude interview prep response:", cleaned, parseError)
       return res.status(500).json({
