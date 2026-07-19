@@ -75,8 +75,9 @@ class AIOrchestrator {
       url = process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1"
     }
 
-    // Global timeout set to 3 minutes (180,000 ms) for all AI queries
-    const timeoutMs = 180000;
+    // Opus gets 5-minute timeout — all other models get 3-minute timeout
+    const timeoutMs = (customModel || config.model).includes("opus") ? 300000 : 180000
+
 
     try {
       console.log(`AI Orchestrator: Dispatching task "${taskType}" to model "${modelName}" with timeout ${timeoutMs}ms...`)

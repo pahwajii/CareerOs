@@ -21,6 +21,8 @@ export default function ResumeAnalyzerPage() {
   const [tailorHistory, setTailorHistory] = useState([])
   const [loadingKimi, setLoadingKimi] = useState(false)
   const [loadingClaude, setLoadingClaude] = useState(false)
+  const [loadingOpus, setLoadingOpus] = useState(false)
+  const [opusTimeLeft, setOpusTimeLeft] = useState(300)
 
   // Outreach assistant state variables
   const [outreachType, setOutreachType] = useState("Cover Letter")
@@ -135,35 +137,50 @@ export default function ResumeAnalyzerPage() {
     if (!selectedJobId) return
 
     setLoadingKimi(true)
-    setLoadingClaude(true)
-    showToast("Launching tailoring pipeline: Kimi 2.7 (Fast) & Claude Sonnet (Premium) are processing...", "info")
+    showToast("Launching AI tailoring with gpt-5.6-sol...", "info")
 
-    // Call A: Kimi (Fast)
-    api.tailorResume(selectedJobId, "kimi-k2.7-code")
+    api.tailorResume(selectedJobId, null)
       .then(data => {
         setTailorHistory(prev => [data, ...prev])
-        showToast("Kimi 2.7 (Fast Version) tailored successfully!", "success")
+        showToast("Resume tailored successfully!", "success")
       })
       .catch(err => {
-        console.error("Kimi tailoring failed:", err)
-        showToast("Fast version (Kimi) failed: " + (err.message || err), "error")
+        console.error("Tailoring failed:", err)
+        showToast("Tailoring failed: " + (err.message || err), "error")
       })
-      .finally(() => {
-        setLoadingKimi(false)
-      })
+      .finally(() => setLoadingKimi(false))
+  }
 
-    // Call B: Claude Sonnet (Premium)
-    api.tailorResume(selectedJobId, "claude-sonnet-4-6")
+  const handleRunPremiumTailoring = (e) => {
+    e.preventDefault()
+    if (!selectedJobId || loadingOpus) return
+
+    setLoadingOpus(true)
+    setOpusTimeLeft(300)
+    showToast("✨ Claude Opus Premium tailoring started — this may take up to 5 minutes...", "info")
+
+    // Live countdown timer
+    const interval = setInterval(() => {
+      setOpusTimeLeft(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+
+    api.tailorResume(selectedJobId, "claude-opus-4-5-20251101")
       .then(data => {
+        clearInterval(interval)
         setTailorHistory(prev => [data, ...prev])
-        showToast("Claude Sonnet (Premium Version) tailored successfully!", "success")
+        showToast("👑 Claude Opus Premium resume tailored successfully!", "success")
       })
       .catch(err => {
-        console.error("Claude tailoring failed:", err)
-        showToast("Premium version (Claude) failed: " + (err.message || err), "error")
+        clearInterval(interval)
+        console.error("Premium tailoring failed:", err)
+        showToast("Premium tailoring failed: " + (err.message || err), "error")
       })
       .finally(() => {
-        setLoadingClaude(false)
+        setLoadingOpus(false)
+        setOpusTimeLeft(300)
       })
   }
 
@@ -429,14 +446,39 @@ export default function ResumeAnalyzerPage() {
               )}
 
               {selectedJobId ? (
-                <Button
-                  onClick={handleRunTailoring}
-                  variant="primary"
-                  className="w-full py-3"
-                  loading={loadingKimi || loadingClaude}
-                >
-                  ✨ Run AI Wording Tailoring
-                </Button>
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleRunTailoring}
+                    variant="primary"
+                    className="w-full py-3"
+                    loading={loadingKimi}
+                    disabled={loadingOpus}
+                  >
+                    ✨ Run AI Tailoring (gpt-5.6-sol)
+                  </Button>
+
+                  {/* Premium Claude Opus Button */}
+                  <button
+                    onClick={handleRunPremiumTailoring}
+                    disabled={loadingOpus || loadingKimi}
+                    className="w-full py-3 px-4 rounded-xl font-bold text-sm transition-all duration-200 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-white shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-amber-400/30"
+                  >
+                    {loadingOpus ? (
+                      <>
+                        <span className="inline-block animate-spin">⏳</span>
+                        <span>
+                          Claude Opus working... {Math.floor(opusTimeLeft / 60)}:{String(opusTimeLeft % 60).padStart(2, "0")} left
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>👑</span>
+                        <span>Premium — Claude Opus</span>
+                        <span className="text-[10px] font-black bg-white/20 px-1.5 py-0.5 rounded ml-1">5 MIN</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               ) : (
                 <div className="text-xs text-center text-gray-400 italic py-2">
                   Add a job application to start tailoring.
@@ -678,17 +720,22 @@ export default function ResumeAnalyzerPage() {
             {/* TAILORING RESULTS RENDERING */}
             {matchMode === "tailor" && (
               <div className="space-y-6">
-                {(loadingKimi || loadingClaude) && (
+                {(loadingKimi || loadingOpus) && (
                   <div className="flex flex-col items-center justify-center text-center h-[350px] space-y-4">
-                    <LoadingSpinner 
-                      size="lg" 
-                      message={loadingKimi && loadingClaude ? "Kimi 2.7 & Claude Sonnet are tailoring your resume..." : "Claude Sonnet is finishing premium optimization..."} 
+                    <LoadingSpinner
+                      size="lg"
+                      message={loadingOpus ? `👑 Claude Opus Premium is optimizing your resume...` : "Tailoring your resume with gpt-5.6-sol..."}
                     />
-                    <p className="text-xs text-gray-450 dark:text-slate-500 max-w-xs leading-relaxed">
-                      {loadingKimi && loadingClaude 
-                        ? "Running two AI models concurrently. The fast version (Kimi) will load in seconds, followed by Claude's premium output."
-                        : "Fast version is ready for download! Waiting for Claude to complete high-fidelity keyword adjustments."}
-                    </p>
+                    {loadingOpus && (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="text-3xl font-black text-amber-500">
+                          {Math.floor(opusTimeLeft / 60)}:{String(opusTimeLeft % 60).padStart(2, "0")}
+                        </div>
+                        <p className="text-xs text-gray-450 dark:text-slate-500 max-w-xs leading-relaxed">
+                          Claude Opus runs a deeper optimization pass — crafting the highest-quality ATS-tuned bullets. Hang tight!
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -709,7 +756,7 @@ export default function ResumeAnalyzerPage() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs bg-indigo-600 text-white font-bold px-2 py-0.5 rounded">Version {tailorHistory.length - idx}</span>
                               <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold px-2 py-0.5 rounded border dark:border-slate-700/60 uppercase">
-                                {version.modelUsed === "kimi-k2.7-code" ? "Kimi 2.7 (Fast)" : version.modelUsed === "claude-sonnet-4-6" ? "Claude 3.5 (Premium)" : version.modelUsed || "Claude 3.5"}
+                                {version.modelUsed === "kimi-k2.7-code" ? "Kimi 2.7 (Fast)" : version.modelUsed?.includes("claude-opus") ? "👑 Claude Opus (Premium)" : version.modelUsed === "claude-sonnet-4-6" ? "Claude Sonnet" : version.modelUsed || "gpt-5.6-sol"}
                               </span>
                               {version.pdfCompiled === false && (
                                 <span className="text-[10px] bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 font-bold px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/30 uppercase">
