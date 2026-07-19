@@ -58,13 +58,16 @@ class AIOrchestrator {
     const url = config.apiKey ? config.baseUrl : (process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1")
     const modelName = config.apiKey ? config.model : (process.env.FORGE_MODEL || "claude-sonnet-4-6")
 
+    // Dynamically adjust timeout based on task complexity (e.g. 3 minutes/180s for interview-prep)
+    const timeoutMs = taskType === "interview-prep" ? 180000 : 90000
+
     try {
-      console.log(`AI Orchestrator: Dispatching task "${taskType}" to model "${modelName}"...`)
-      return await aiService._executeRequest(key, url, modelName, messages, temperature)
+      console.log(`AI Orchestrator: Dispatching task "${taskType}" to model "${modelName}" with timeout ${timeoutMs}ms...`)
+      return await aiService._executeRequest(key, url, modelName, messages, temperature, timeoutMs)
     } catch (error) {
       console.warn(`AI Orchestrator: Selected model ${modelName} failed for task ${taskType}. Falling back to general chat...`, error.message)
       // Fallback: use callChatCompletion (which will try Forge default model, then Gemini fallback)
-      return await aiService.callChatCompletion(messages, temperature)
+      return await aiService.callChatCompletion(messages, temperature, timeoutMs)
     }
   }
 }

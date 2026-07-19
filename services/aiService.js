@@ -18,14 +18,14 @@ class AIService {
    * General purpose wrapper to call the OpenAI-compatible chat completion endpoint.
    * Degrades gracefully by falling back to Gemini if the primary provider fails.
    */
-  async callChatCompletion(messages, temperature = 0.7) {
+  async callChatCompletion(messages, temperature = 0.7, timeoutMs = 90000) {
     // 1. Try Primary Provider (ForgeAI)
     try {
       if (!this.apiKey) {
         throw new Error("FORGE_API_KEY is not defined in the environment.")
       }
-      console.log(`AI Service: Attempting primary request using model ${this.model}...`)
-      return await this._executeRequest(this.apiKey, this.baseUrl, this.model, messages, temperature)
+      console.log(`AI Service: Attempting primary request using model ${this.model} with timeout ${timeoutMs}ms...`)
+      return await this._executeRequest(this.apiKey, this.baseUrl, this.model, messages, temperature, timeoutMs)
     } catch (primaryError) {
       console.warn("AI Service: Primary AI Gateway call failed:", primaryError.message)
 
@@ -37,7 +37,7 @@ class AIService {
         const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash"
         
         try {
-          return await this._executeRequest(geminiKey, geminiUrl, geminiModel, messages, temperature)
+          return await this._executeRequest(geminiKey, geminiUrl, geminiModel, messages, temperature, timeoutMs)
         } catch (fallbackError) {
           console.error("AI Service: Fallback Gemini API call also failed:", fallbackError.message)
           throw new Error(`AI service failed: Primary error: ${primaryError.message} | Fallback error: ${fallbackError.message}`)
@@ -51,9 +51,9 @@ class AIService {
   /**
    * Helper to perform raw OpenAI-compatible API requests
    */
-  async _executeRequest(apiKey, baseUrl, model, messages, temperature) {
+  async _executeRequest(apiKey, baseUrl, model, messages, temperature, timeoutMs = 90000) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 90000) // 90-second timeout (1.5 minutes)
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
       const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -87,7 +87,7 @@ class AIService {
     } catch (error) {
       clearTimeout(timeoutId)
       if (error.name === "AbortError") {
-        console.error("AI Service Timeout: The request took longer than 90 seconds.")
+        console.error(`AI Service Timeout: The request took longer than ${timeoutMs / 1000} seconds.`)
         throw new Error("The AI service request timed out. Please try again.")
       }
       console.error("AI Service Exception:", error.message)
