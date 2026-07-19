@@ -51,6 +51,10 @@ const tailoredResumeSchema = new mongoose.Schema(
     texFileName: {
       type: String,
       default: ""
+    },
+    modelUsed: {
+      type: String,
+      default: "claude-sonnet-4-6"
     }
   },
   { timestamps: true }

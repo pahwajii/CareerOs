@@ -50,13 +50,30 @@ class AIOrchestrator {
     }
   }
 
-  async execute(taskType, messages, temperature = 0.2) {
+  async execute(taskType, messages, temperature = 0.2, customModel = null) {
     const config = this.getModelForTask(taskType)
+    let modelName = customModel || config.model
     
-    // Check if selected API key is available, otherwise fall back to what's available
-    const key = config.apiKey || process.env.FORGE_API_KEY || process.env.GEMINI_API_KEY
-    const url = config.apiKey ? config.baseUrl : (process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1")
-    const modelName = config.apiKey ? config.model : (process.env.FORGE_MODEL || "claude-sonnet-4-6")
+    let key = config.apiKey
+    let url = config.baseUrl
+
+    // If custom model is specified, determine correct endpoint/keys automatically
+    if (customModel) {
+      if (customModel.includes("gemini")) {
+        key = process.env.GEMINI_API_KEY
+        url = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai"
+      } else {
+        key = process.env.FORGE_API_KEY
+        url = process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1"
+      }
+    }
+
+    if (!key) {
+      key = process.env.FORGE_API_KEY || process.env.GEMINI_API_KEY
+    }
+    if (!url) {
+      url = process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1"
+    }
 
     // Dynamically adjust timeout based on task complexity (e.g. 3 minutes/180s for interview-prep)
     const timeoutMs = taskType === "interview-prep" ? 180000 : 90000

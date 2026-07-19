@@ -507,7 +507,7 @@ function generateTexFile(filePath, contentText, user) {
  * POST /api/resume/tailor
  */
 export async function tailorResume(req, res, next) {
-  const { jobId } = req.body
+  const { jobId, useModel } = req.body
 
   try {
     if (!jobId) {
@@ -598,8 +598,8 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
       { role: "user", content: prompt }
     ]
 
-    console.log("AI Resume Tailor: Invoking Claude Sonnet Thinking model...")
-    const rawResponse = await aiOrchestrator.execute("resume-tailoring", messages)
+    console.log(`AI Resume Tailor: Invoking ${useModel || "default"} model...`)
+    const rawResponse = await aiOrchestrator.execute("resume-tailoring", messages, 0.2, useModel)
     
     let cleaned = rawResponse.trim()
     if (cleaned.startsWith("```")) {
@@ -650,7 +650,8 @@ Return ONLY valid raw JSON starting with '{' and ending with '}'. Do not include
       suggestions: parsed.suggestions || [],
       pdfFileName,
       docxFileName,
-      texFileName
+      texFileName,
+      modelUsed: useModel || "claude-sonnet-4-6"
     })
 
     await tailored.save()
