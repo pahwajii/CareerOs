@@ -10,7 +10,7 @@ class AIOrchestrator {
         return {
           apiKey: process.env.FORGE_API_KEY,
           baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: "claude-sonnet-4-6"
+          model: "gpt-5.6-sol" // Premium OpenAI model for high-quality resume writing
         }
       case "gap-analysis":
         return {
