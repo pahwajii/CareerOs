@@ -1,4 +1,5 @@
 import aiOrchestrator from "./aiOrchestrator.js"
+import User from "../models/User.js"
 
 class ProfileBuilderService {
   /**
@@ -101,22 +102,29 @@ class ProfileBuilderService {
       codingData
     })
     
-    // Save to user MongoDB model
+    // Save to user MongoDB model using findByIdAndUpdate to avoid Mongoose
+    // VersionError — user doc becomes stale during the long async AI pipeline
     onProgress("save", "Building Career Profile...")
-    user.phone = mergedProfile.phone || user.phone
-    user.headline = mergedProfile.headline || user.headline
-    user.bio = mergedProfile.bio || user.bio
-    user.skills = mergedProfile.skills || user.skills
-    user.education = mergedProfile.education || user.education
-    user.experience = mergedProfile.experience || user.experience
-    user.projects = mergedProfile.projects || user.projects
-    user.certifications = mergedProfile.certifications || user.certifications
-    user.careerPreferences = mergedProfile.careerPreferences || user.careerPreferences
-    
-    await user.save()
+    const updates = {
+      ...(mergedProfile.phone        && { phone: mergedProfile.phone }),
+      ...(mergedProfile.headline     && { headline: mergedProfile.headline }),
+      ...(mergedProfile.bio          && { bio: mergedProfile.bio }),
+      ...(mergedProfile.skills?.length && { skills: mergedProfile.skills }),
+      ...(mergedProfile.education?.length && { education: mergedProfile.education }),
+      ...(mergedProfile.experience?.length && { experience: mergedProfile.experience }),
+      ...(mergedProfile.projects?.length && { projects: mergedProfile.projects }),
+      ...(mergedProfile.certifications?.length && { certifications: mergedProfile.certifications }),
+      ...(mergedProfile.careerPreferences && { careerPreferences: mergedProfile.careerPreferences })
+    }
 
-    onProgress("done", "Master Career Profile built successfully!", user)
-    return user
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    )
+
+    onProgress("done", "Master Career Profile built successfully!", updatedUser)
+    return updatedUser
   }
 
   extractUsername(url) {
