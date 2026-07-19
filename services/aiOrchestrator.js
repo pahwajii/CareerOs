@@ -24,9 +24,9 @@ class AIOrchestrator {
       case "profile-merging":
       case "profile-building":
         return {
-          apiKey: process.env.GEMINI_API_KEY,
-          baseUrl: process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai",
-          model: process.env.GEMINI_MODEL || "gemini-2.5-flash"
+          apiKey: process.env.FORGE_API_KEY,
+          baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
+          model: "gpt-5.6-luna" // 1.05m context, cost-effective for large text parsing
         }
       case "github-analysis":
         return {
@@ -39,13 +39,13 @@ class AIOrchestrator {
         return {
           apiKey: process.env.FORGE_API_KEY,
           baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: "gpt-5.5"
+          model: "gpt-5.6-terra" // High quality, balanced for text drafting
         }
       default:
         return {
           apiKey: process.env.FORGE_API_KEY,
           baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: process.env.FORGE_MODEL || "claude-sonnet-4-6"
+          model: "gpt-5.6-sol" // Premium fallback model
         }
     }
   }
@@ -75,8 +75,8 @@ class AIOrchestrator {
       url = process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1"
     }
 
-    // Dynamically adjust timeout based on task complexity (e.g. 3 minutes/180s for interview-prep)
-    const timeoutMs = taskType === "interview-prep" ? 180000 : 90000
+    // Global timeout set to 3 minutes (180,000 ms) for all AI queries
+    const timeoutMs = 180000;
 
     try {
       console.log(`AI Orchestrator: Dispatching task "${taskType}" to model "${modelName}" with timeout ${timeoutMs}ms...`)
