@@ -1,5 +1,7 @@
 # CareerOS: AI-Powered Job Application & Career Management Suite
 
+🌐 **Live Application:** [career-os-job-tracker-app.vercel.app](https://career-os-job-tracker-app.vercel.app/)
+
 CareerOS is a production-grade, full-stack application designed to help software engineers track, analyze, and optimize their entire job search. From automatically capturing job listings to AI-tailored resumes and full interview preparation, CareerOS covers every stage of the career pipeline.
 
 ---
