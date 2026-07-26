@@ -1,4 +1,5 @@
 import express from "express"
+import multer from "multer"
 import auth from "../middleware/auth.js"
 import {
   getJobs,
@@ -6,10 +7,18 @@ import {
   updateJob,
   deleteJob,
   updateChecklist,
-  getAnalytics
+  getAnalytics,
+  importExcelJobs,
+  batchCreateJobs
 } from "../controllers/jobController.js"
 
 const router = express.Router()
+
+// Multer memory storage configuration for spreadsheet files
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+})
 
 // @route   GET /api/jobs
 // @desc    Get all jobs for logged-in user
@@ -20,6 +29,16 @@ router.get("/", auth, getJobs)
 // @desc    Create a job application
 // @access  Private
 router.post("/", auth, createJob)
+
+// @route   POST /api/jobs/import-excel
+// @desc    Parse uploaded Excel / CSV sheet file
+// @access  Private
+router.post("/import-excel", auth, upload.single("file"), importExcelJobs)
+
+// @route   POST /api/jobs/batch-create
+// @desc    Batch create job applications
+// @access  Private
+router.post("/batch-create", auth, batchCreateJobs)
 
 // @route   GET /api/jobs/analytics
 // @desc    Get aggregated job statistics
@@ -42,3 +61,4 @@ router.delete("/:id", auth, deleteJob)
 router.put("/:id/checklist", auth, updateChecklist)
 
 export default router
+

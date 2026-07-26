@@ -68,11 +68,94 @@ export default function JobTrackerPage() {
   const [automating, setAutomating] = useState(false)
   const [autoMessage, setAutoMessage] = useState("")
 
+  // Excel / CSV Batch Import States
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [importFile, setImportFile] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState("")
+  const [parsedJobs, setParsedJobs] = useState([])
+  const [selectedImportIds, setSelectedImportIds] = useState(new Set())
+  const [savingBatch, setSavingBatch] = useState(false)
+  const [batchSuccessMsg, setBatchSuccessMsg] = useState("")
+
+  const handleExcelFileSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportFile(file)
+    setImportError("")
+    setBatchSuccessMsg("")
+    await parseExcelFile(file)
+  }
+
+  const parseExcelFile = async (file) => {
+    setImporting(true)
+    setImportError("")
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await api.importExcel(formData)
+      if (res.jobs && res.jobs.length > 0) {
+        setParsedJobs(res.jobs)
+        setSelectedImportIds(new Set(res.jobs.map(j => j.id)))
+      } else {
+        setImportError("No job openings could be parsed from this file.")
+      }
+    } catch (err) {
+      setImportError(err.message || "Failed to parse Excel file.")
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const toggleSelectImport = (id) => {
+    setSelectedImportIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAllImports = () => {
+    if (selectedImportIds.size === parsedJobs.length) {
+      setSelectedImportIds(new Set())
+    } else {
+      setSelectedImportIds(new Set(parsedJobs.map(j => j.id)))
+    }
+  }
+
+  const handleBatchImportSubmit = async () => {
+    const jobsToImport = parsedJobs.filter(j => selectedImportIds.has(j.id))
+    if (jobsToImport.length === 0) {
+      setImportError("Please select at least one job opening to import.")
+      return
+    }
+
+    setSavingBatch(true)
+    setImportError("")
+    try {
+      const res = await api.batchCreateJobs(jobsToImport)
+      setBatchSuccessMsg(res.message || `Successfully imported ${jobsToImport.length} jobs!`)
+      fetchJobs()
+      setTimeout(() => {
+        setImportModalOpen(false)
+        setParsedJobs([])
+        setImportFile(null)
+        setBatchSuccessMsg("")
+      }, 1500)
+    } catch (err) {
+      setImportError(err.message || "Failed to import batch openings.")
+    } finally {
+      setSavingBatch(false)
+    }
+  }
+
   // AI JD Smart Parsing States
   const [showJdExtractor, setShowJdExtractor] = useState(false)
   const [rawJdText, setRawJdText] = useState("")
   const [parsingJd, setParsingJd] = useState(false)
   const [parseError, setParseError] = useState("")
+
 
   // Calendar View month configurations
   const [calYear, setCalYear] = useState(new Date().getFullYear())
@@ -339,9 +422,18 @@ export default function JobTrackerPage() {
           <h1 className="text-4xl font-extrabold text-indigo-950 dark:text-white tracking-tight">💼 Career Application CRM</h1>
           <p className="text-gray-550 dark:text-slate-400 mt-1">Manage, optimize, and track job applications, interviews, and outreach metrics.</p>
         </div>
-        <Button variant="primary" onClick={openCreateModal} className="px-5 py-3 text-xs font-bold tracking-wide">
-          ➕ New Application
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            onClick={() => setImportModalOpen(true)}
+            className="px-4 py-3 text-xs font-bold tracking-wide border dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-950 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"
+          >
+            📊 Import Excel / CSV
+          </Button>
+          <Button variant="primary" onClick={openCreateModal} className="px-5 py-3 text-xs font-bold tracking-wide bg-indigo-650">
+            ➕ New Application
+          </Button>
+        </div>
       </div>
 
       {/* Tabs list & Search bar */}
@@ -956,6 +1048,163 @@ export default function JobTrackerPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* EXCEL / CSV BATCH IMPORT MODAL */}
+      {importModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-4xl w-full shadow-2xl space-y-6 max-h-[90vh] flex flex-col my-auto">
+            <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+              <div>
+                <h3 className="text-xl font-extrabold text-indigo-950 dark:text-white flex items-center gap-2">
+                  📊 Import Job Openings from Excel / CSV
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                  Upload a spreadsheet (.xlsx, .xls, .csv). Columns like Company, Role, URL, Location, Salary & Description are auto-mapped.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setImportModalOpen(false)
+                  setParsedJobs([])
+                  setImportFile(null)
+                  setImportError("")
+                  setBatchSuccessMsg("")
+                }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-white p-2 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Step 1: Upload Dropzone */}
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-indigo-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-6 text-center transition bg-indigo-50/20 dark:bg-slate-950/20 relative">
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleExcelFileSelect}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+                <div className="space-y-2 pointer-events-none">
+                  <div className="text-3xl">📄</div>
+                  <p className="text-xs font-bold text-indigo-950 dark:text-white">
+                    {importFile ? importFile.name : "Click or drag your Excel (.xlsx, .xls) or CSV sheet here"}
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    Supports LinkedIn exports, custom track sheets, and CSV job dumps.
+                  </p>
+                </div>
+              </div>
+
+              {importError && (
+                <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 text-xs rounded-xl font-medium">
+                  ⚠️ {importError}
+                </div>
+              )}
+
+              {batchSuccessMsg && (
+                <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs rounded-xl font-semibold flex items-center gap-2">
+                  ✅ {batchSuccessMsg}
+                </div>
+              )}
+
+              {importing && (
+                <div className="py-8 flex justify-center">
+                  <LoadingSpinner size="md" message="Parsing worksheet columns and extracting job openings..." />
+                </div>
+              )}
+            </div>
+
+            {/* Step 2: Parsed Preview Table */}
+            {parsedJobs.length > 0 && !importing && (
+              <div className="flex-1 overflow-hidden flex flex-col space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-600 dark:text-slate-300">
+                    Extracted {parsedJobs.length} Openings ({selectedImportIds.size} selected)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllImports}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    {selectedImportIds.size === parsedJobs.length ? "Deselect All" : "Select All"}
+                  </button>
+                </div>
+
+                <div className="overflow-y-auto border dark:border-slate-800 rounded-2xl max-h-60">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-indigo-50/50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 sticky top-0 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3 w-10 text-center">Import</th>
+                        <th className="p-3">Company</th>
+                        <th className="p-3">Role / Position</th>
+                        <th className="p-3">Location</th>
+                        <th className="p-3">Salary</th>
+                        <th className="p-3">Job Link</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-slate-800">
+                      {parsedJobs.map((j) => (
+                        <tr key={j.id} className="hover:bg-indigo-50/20 dark:hover:bg-slate-800/50 transition">
+                          <td className="p-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedImportIds.has(j.id)}
+                              onChange={() => toggleSelectImport(j.id)}
+                              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          </td>
+                          <td className="p-3 font-bold text-indigo-950 dark:text-white">{j.company}</td>
+                          <td className="p-3 font-semibold text-gray-700 dark:text-slate-200">{j.role}</td>
+                          <td className="p-3 text-gray-500">{j.location || "N/A"}</td>
+                          <td className="p-3 text-gray-500">{j.salary || "N/A"}</td>
+                          <td className="p-3">
+                            {j.url ? (
+                              <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1">
+                                🚀 Auto-Apply Ready
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-[11px]">No link</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex justify-end gap-3 pt-4 border-t dark:border-slate-800">
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => {
+                  setImportModalOpen(false)
+                  setParsedJobs([])
+                  setImportFile(null)
+                }}
+              >
+                Cancel
+              </Button>
+              {parsedJobs.length > 0 && (
+                <Button
+                  variant="primary"
+                  type="button"
+                  onClick={handleBatchImportSubmit}
+                  loading={savingBatch}
+                  disabled={selectedImportIds.size === 0}
+                  className="bg-indigo-650 px-6"
+                >
+                  🚀 Import {selectedImportIds.size} Openings to Tracker
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -303,5 +303,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ jobId })
     })
+  },
+
+  // Excel / CSV Batch Import APIs
+  importExcel: async (formData) => {
+    return request("/jobs/import-excel", {
+      method: "POST",
+      body: formData
+    })
+  },
+
+  batchCreateJobs: async (jobs) => {
+    return request("/jobs/batch-create", {
+      method: "POST",
+      body: JSON.stringify({ jobs })
+    })
   }
 }
+

@@ -1,4 +1,6 @@
 import Job from "../models/Job.js"
+import * as XLSX from "xlsx"
+
 
 /**
  * Get all jobs for logged-in user
@@ -225,3 +227,131 @@ export async function updateChecklist(req, res, next) {
     next(error)
   }
 }
+
+/**
+ * Parse uploaded Excel (.xlsx, .xls) or CSV sheet buffer and return extracted job listings
+ * POST /api/jobs/import-excel
+ */
+export async function importExcelJobs(req, res, next) {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: "Please upload a valid Excel or CSV file." })
+    }
+
+    // Read sheet workbook from file buffer
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" })
+    const sheetName = workbook.SheetNames[0]
+    if (!sheetName) {
+      return res.status(400).json({ message: "Workbook contains no readable worksheets." })
+    }
+
+    const sheet = workbook.Sheets[sheetName]
+    const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: "" })
+
+    if (!rawRows || rawRows.length === 0) {
+      return res.status(400).json({ message: "No data rows found in the uploaded file." })
+    }
+
+    // Flexible column matchers
+    const companyKeywords = ["company", "organization", "employer", "firm", "company name", "org"]
+    const roleKeywords = ["role", "title", "job title", "position", "designation", "job role", "job name", "job"]
+    const urlKeywords = ["url", "link", "apply link", "job url", "job link", "website", "application link", "apply url"]
+    const locationKeywords = ["location", "city", "work type", "remote", "place", "site"]
+    const salaryKeywords = ["salary", "compensation", "pay", "stipend", "package", "remuneration", "expected salary", "ctc"]
+    const descKeywords = ["description", "jd", "job description", "details", "requirements", "notes", "summary"]
+
+    const parsedJobs = rawRows.map((row, index) => {
+      const company = findField(row, companyKeywords)
+      const role = findField(row, roleKeywords)
+      const url = findField(row, urlKeywords)
+      const location = findField(row, locationKeywords)
+      const salary = findField(row, salaryKeywords)
+      const jobDescription = findField(row, descKeywords)
+
+      // Fallback: If no dedicated company/role found, extract best effort strings from any string fields
+      let finalCompany = company
+      let finalRole = role
+      if (!finalCompany && !finalRole) {
+        const values = Object.values(row).map(v => String(v).trim()).filter(Boolean)
+        finalCompany = values[0] || `Company #${index + 1}`
+        finalRole = values[1] || "Job Opening"
+      } else if (!finalCompany) {
+        finalCompany = "Target Company"
+      } else if (!finalRole) {
+        finalRole = "Job Opening"
+      }
+
+      return {
+        id: `imported_${Date.now()}_${index}`,
+        company: finalCompany,
+        role: finalRole,
+        url,
+        location,
+        salary,
+        jobDescription,
+        status: "saved"
+      }
+    })
+
+    res.json({
+      success: true,
+      count: parsedJobs.length,
+      jobs: parsedJobs
+    })
+  } catch (error) {
+    console.error("Excel Parsing Error:", error)
+    next(error)
+  }
+}
+
+function findField(row, keywords) {
+  const keys = Object.keys(row)
+  for (const keyword of keywords) {
+    const matchedKey = keys.find(k => {
+      const lowerKey = k.trim().toLowerCase()
+      return lowerKey === keyword || lowerKey.includes(keyword)
+    })
+    if (matchedKey && row[matchedKey] !== undefined && String(row[matchedKey]).trim() !== "") {
+      return String(row[matchedKey]).trim()
+    }
+  }
+  return ""
+}
+
+/**
+ * Batch create job applications in MongoDB
+ * POST /api/jobs/batch-create
+ */
+export async function batchCreateJobs(req, res, next) {
+  const { jobs } = req.body
+
+  try {
+    if (!Array.isArray(jobs) || jobs.length === 0) {
+      return res.status(400).json({ message: "No jobs provided for batch creation." })
+    }
+
+    const jobDocs = jobs.map(j => ({
+      user: req.userId,
+      company: j.company || "Company",
+      role: j.role || "Job Opening",
+      status: j.status || "saved",
+      salary: j.salary || "",
+      location: j.location || "",
+      url: j.url || "",
+      notes: j.notes || "Imported via Excel Batch Upload",
+      jobDescription: j.jobDescription || "",
+      appliedDate: Date.now(),
+      matchScore: j.matchScore || 0
+    }))
+
+    const inserted = await Job.insertMany(jobDocs)
+    res.status(201).json({
+      success: true,
+      message: `Successfully imported ${inserted.length} openings into CareerOS Tracker!`,
+      jobs: inserted
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+

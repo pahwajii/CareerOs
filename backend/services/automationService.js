@@ -12,7 +12,8 @@ class AutomationService {
    * answers screening questions with Gemini Flash, and pauses for human inspection.
    */
   async runAutoApply(userId, jobId, onProgress) {
-    let browser = null
+    let context = null
+
 
     try {
       // 1. Load job and profile context
@@ -44,15 +45,60 @@ class AutomationService {
         onProgress("warning", "No resume PDF file found. Form filling will proceed without upload.")
       }
 
-      // 3. Launch headed browser
-      onProgress("browser", `Opening headed browser at: ${job.url}...`)
-      browser = await chromium.launch({
+      // 3. Launch stealth persistent browser (Prioritizing Brave Browser if available)
+      onProgress("browser", `Opening stealth browser window at: ${job.url}...`)
+
+      const bravePath = getBravePath()
+      const launchOptions = {
         headless: false,
-        args: ["--start-maximized"]
+        ignoreDefaultArgs: ["--enable-automation"],
+        args: [
+          "--start-maximized",
+          "--disable-blink-features=AutomationControlled",
+          "--no-sandbox",
+          "--disable-setuid-sandbox"
+        ]
+      }
+
+      let browser = null
+
+      if (bravePath) {
+        console.log(`🚀 Playwright: Launching Brave Browser directly from ${bravePath}`)
+        try {
+          browser = await chromium.launch({
+            ...launchOptions,
+            executablePath: bravePath
+          })
+          context = await browser.newContext({ viewport: null })
+          onProgress("browser", "Launched Brave Browser window!")
+        } catch (err) {
+          console.warn("Direct Brave launch failed, falling back to system Chrome:", err.message)
+        }
+      }
+
+      // Fallback: System Chrome / Bundled Chromium
+      if (!browser) {
+        try {
+          browser = await chromium.launch({
+            ...launchOptions,
+            channel: "chrome"
+          })
+          context = await browser.newContext({ viewport: null })
+          onProgress("browser", "Launched Chrome Browser window!")
+        } catch (chromeErr) {
+          browser = await chromium.launch(launchOptions)
+          context = await browser.newContext({ viewport: null })
+          onProgress("browser", "Launched default Chromium window!")
+        }
+      }
+
+      const page = await context.newPage()
+
+      // Override navigator.webdriver to prevent site detection
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
       })
 
-      const context = await browser.newContext({ viewport: null })
-      const page = await context.newPage()
       await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 45000 })
 
       // 4. Detect ATS platform
@@ -87,7 +133,7 @@ class AutomationService {
       // Wait for page/browser to close
       await new Promise((resolve) => {
         page.on("close", resolve)
-        browser.on("disconnected", resolve)
+        if (browser) browser.on("disconnected", resolve)
       })
 
       // 7. Transition CRM status to applied
@@ -102,6 +148,8 @@ class AutomationService {
         })
       }
       await job.save()
+
+      if (browser) await browser.close().catch(() => {})
 
       return { success: true, message: "Application prefilled. Status moved to Applied." }
     } catch (error) {
@@ -305,4 +353,17 @@ Be brief, realistic, and do not invent metrics. Output ONLY the response text.
   }
 }
 
+function getBravePath() {
+  const possiblePaths = [
+    "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+    "C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+    path.join(process.env.LOCALAPPDATA || "", "BraveSoftware", "Brave-Browser", "Application", "brave.exe")
+  ]
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) return p
+  }
+  return null
+}
+
 export default new AutomationService()
+
