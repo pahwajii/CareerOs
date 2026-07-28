@@ -1,0 +1,15 @@
+{
+  "name": "careeros-omniroute-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0 <23 || >=24.0.0 <27"
+  },
+  "scripts": {
+    "start": "omniroute"
+  },
+  "dependencies": {
+    "omniroute": "3.8.48"
+  }
+}

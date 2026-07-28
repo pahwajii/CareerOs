@@ -1,25 +1,19 @@
 import aiService from "./aiService.js"
-
-const FORGE_DEFAULT_BASE_URL = "https://forge-gateway-api.fly.dev/v1"
-const OMNIROUTE_DEFAULT_BASE_URL = "http://localhost:20128/v1"
-
-function isOmniRouteConfigured() {
-  return Boolean(process.env.OMNIROUTE_BASE_URL || process.env.OMNIROUTE_API_KEY || process.env.OMNIROUTE_MODEL)
-}
+import { getForgeBaseUrl, getOmniRouteBaseUrl, isOmniRouteConfigured } from "../config/aiGateway.js"
 
 class AIOrchestrator {
   getGatewayConfig(defaultForgeModel, defaultOmniRouteModel = "auto") {
     if (isOmniRouteConfigured()) {
       return {
         apiKey: process.env.OMNIROUTE_API_KEY || process.env.FORGE_API_KEY,
-        baseUrl: process.env.OMNIROUTE_BASE_URL || OMNIROUTE_DEFAULT_BASE_URL,
+        baseUrl: getOmniRouteBaseUrl(),
         model: process.env.OMNIROUTE_MODEL || defaultOmniRouteModel
       }
     }
 
     return {
       apiKey: process.env.FORGE_API_KEY,
-      baseUrl: process.env.FORGE_BASE_URL || FORGE_DEFAULT_BASE_URL,
+      baseUrl: getForgeBaseUrl(),
       model: defaultForgeModel
     }
   }
@@ -63,10 +57,10 @@ class AIOrchestrator {
         url = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai"
       } else if (isOmniRouteConfigured()) {
         key = process.env.OMNIROUTE_API_KEY || process.env.FORGE_API_KEY
-        url = process.env.OMNIROUTE_BASE_URL || OMNIROUTE_DEFAULT_BASE_URL
+        url = getOmniRouteBaseUrl()
       } else {
         key = process.env.FORGE_API_KEY
-        url = process.env.FORGE_BASE_URL || FORGE_DEFAULT_BASE_URL
+        url = getForgeBaseUrl()
       }
     }
 
@@ -74,7 +68,7 @@ class AIOrchestrator {
       key = process.env.OMNIROUTE_API_KEY || process.env.FORGE_API_KEY || process.env.GEMINI_API_KEY
     }
     if (!url) {
-      url = process.env.OMNIROUTE_BASE_URL || process.env.FORGE_BASE_URL || FORGE_DEFAULT_BASE_URL
+      url = isOmniRouteConfigured() ? getOmniRouteBaseUrl() : getForgeBaseUrl()
     }
 
     // Opus gets 5-minute timeout — all other models get 3-minute timeout

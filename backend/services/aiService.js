@@ -1,9 +1,4 @@
-const FORGE_DEFAULT_BASE_URL = "https://forge-gateway-api.fly.dev/v1"
-const OMNIROUTE_DEFAULT_BASE_URL = "http://localhost:20128/v1"
-
-function isOmniRouteConfigured() {
-  return Boolean(process.env.OMNIROUTE_BASE_URL || process.env.OMNIROUTE_API_KEY || process.env.OMNIROUTE_MODEL)
-}
+import { getForgeBaseUrl, getOmniRouteBaseUrl, isOmniRouteConfigured } from "../config/aiGateway.js"
 
 /**
  * AI Service for communicating with OpenAI-compatible gateways.
@@ -24,10 +19,10 @@ class AIService {
 
   get baseUrl() {
     if (this.isOmniRouteEnabled) {
-      return process.env.OMNIROUTE_BASE_URL || OMNIROUTE_DEFAULT_BASE_URL
+      return getOmniRouteBaseUrl()
     }
 
-    return process.env.FORGE_BASE_URL || FORGE_DEFAULT_BASE_URL
+    return getForgeBaseUrl()
   }
 
   get model() {

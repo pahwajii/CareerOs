@@ -176,3 +176,22 @@ CareerOS is deployed using a split-hosting strategy:
 | **Frontend** (Vite + React) | [Vercel](https://vercel.com) | Zero-config Vite builds, global CDN |
 
 Environment variables are configured in each platform's dashboard — never committed to source control.
+
+### OmniRoute Server on Render
+
+The repository includes a Render Blueprint service named `careeros-omniroute` that runs OmniRoute as a separate Node web service. It uses:
+
+- Node 22, required by the current OmniRoute npm package.
+- `HOSTNAME=0.0.0.0`, so Render can route traffic to it.
+- A persistent disk at `/opt/render/project/src/omniroute-data`, so provider credentials and gateway state survive redeploys.
+- Render private service discovery through `OMNIROUTE_HOSTPORT`, so the backend calls OmniRoute privately instead of hardcoding a public URL.
+
+Deploy flow:
+
+1. Push this repo and apply the `render.yaml` Blueprint in Render.
+2. Set `INITIAL_PASSWORD` on `careeros-omniroute` during Blueprint setup.
+3. Set the existing backend secrets: `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL`, and any fallback AI keys you want.
+4. Open the deployed OmniRoute dashboard, configure providers, then create/copy an endpoint API key.
+5. Set that key as `OMNIROUTE_API_KEY` on `careeros-backend` and redeploy the backend.
+
+The persistent disk requires a paid Render web service plan. Without the disk, OmniRoute can still boot, but configured providers and endpoint keys may be lost on redeploy.

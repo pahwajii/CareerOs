@@ -20,6 +20,7 @@ export function validateEnv() {
     process.env.FORGE_API_KEY ||
     process.env.GEMINI_API_KEY ||
     process.env.OMNIROUTE_BASE_URL ||
+    process.env.OMNIROUTE_HOSTPORT ||
     process.env.OMNIROUTE_API_KEY ||
     process.env.OMNIROUTE_MODEL
 
