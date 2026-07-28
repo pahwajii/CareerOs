@@ -136,8 +136,16 @@ Create a `.env` file inside the `backend/` directory:
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_signing_secret
-FORGE_API_KEY=your_gemini_or_claude_orchestrator_key
 CLIENT_URL=http://localhost:5173
+
+# OmniRoute local OpenAI-compatible gateway
+OMNIROUTE_BASE_URL=http://localhost:20128/v1
+OMNIROUTE_MODEL=auto
+OMNIROUTE_API_KEY=
+
+# Optional fallback providers
+FORGE_API_KEY=your_forge_key_if_not_using_omniroute
+GEMINI_API_KEY=your_gemini_key_if_you_want_fallback
 ```
 
 ### 2. Install All Dependencies
@@ -147,10 +155,12 @@ npm install
 ```
 
 ### 3. Run the Application
-Start both the Express API and the Vite React frontend concurrently with one command from the **root directory**:
+Start OmniRoute, the Express API, and the Vite React frontend concurrently with one command from the **root directory**:
 ```bash
 npm run dev
 ```
+
+The OmniRoute dashboard runs at [http://localhost:20128](http://localhost:20128), and this app sends AI requests to [http://localhost:20128/v1](http://localhost:20128/v1).
 
 The server will be up on [http://localhost:5000](http://localhost:5000), and the React web app will open automatically on [http://localhost:5173](http://localhost:5173).
 

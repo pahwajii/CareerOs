@@ -256,7 +256,7 @@ async function runTests() {
 
       console.log(`AI Endpoint response status: ${aiPrepRes.status}`)
       console.log(`AI Endpoint error response: ${JSON.stringify(aiPrepData)}`)
-      if (aiPrepRes.status !== 500 || (!aiPrepData.message.includes("API key is not configured") && !aiPrepData.message.includes("FORGE_API_KEY is not defined"))) {
+      if (aiPrepRes.status !== 500 || (!aiPrepData.message.includes("API key is not configured") && !aiPrepData.message.includes("FORGE_API_KEY or OMNIROUTE_API_KEY is not defined"))) {
         throw new Error(`AI route did not degrade gracefully: ${JSON.stringify(aiPrepData)}`)
       }
       console.log("✔ AI endpoint degraded gracefully, returning an informative 500 error.")

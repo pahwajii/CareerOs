@@ -5,8 +5,7 @@
 export function validateEnv() {
   const required = [
     "MONGO_URI",
-    "JWT_SECRET",
-    "FORGE_API_KEY"
+    "JWT_SECRET"
   ]
 
   const missing = []
@@ -16,6 +15,17 @@ export function validateEnv() {
       missing.push(key)
     }
   })
+
+  const hasAiGateway =
+    process.env.FORGE_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.OMNIROUTE_BASE_URL ||
+    process.env.OMNIROUTE_API_KEY ||
+    process.env.OMNIROUTE_MODEL
+
+  if (!hasAiGateway) {
+    missing.push("FORGE_API_KEY or GEMINI_API_KEY or OMNIROUTE_BASE_URL")
+  }
 
   if (missing.length > 0) {
     console.error("❌ CRITICAL: Missing required environment variables:")

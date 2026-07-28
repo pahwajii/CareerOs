@@ -9,8 +9,10 @@
   "scripts": {
     "install-all": "npm install",
     "dev:backend": "npm run dev -w backend",
+    "dev:backend:wait-omniroute": "node scripts/wait-for-port.mjs 127.0.0.1 20128 90000 && npm run dev:backend",
     "dev:frontend": "npm run dev -w job-tracker-app",
-    "dev": "npx concurrently --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\""
+    "dev": "npx concurrently --kill-others-on-fail \"npm run omniroute\" \"npm run dev:backend:wait-omniroute\" \"npm run dev:frontend\"",
+    "omniroute": "npx -y omniroute@latest"
   },
   "dependencies": {
     "react-router-dom": "^7.7.1",

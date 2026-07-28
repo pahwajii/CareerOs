@@ -1,16 +1,40 @@
+const FORGE_DEFAULT_BASE_URL = "https://forge-gateway-api.fly.dev/v1"
+const OMNIROUTE_DEFAULT_BASE_URL = "http://localhost:20128/v1"
+
+function isOmniRouteConfigured() {
+  return Boolean(process.env.OMNIROUTE_BASE_URL || process.env.OMNIROUTE_API_KEY || process.env.OMNIROUTE_MODEL)
+}
+
 /**
- * AI Service for communicating with the ForgeAI Gateway (OpenAI compatible)
+ * AI Service for communicating with OpenAI-compatible gateways.
+ * Supports ForgeAI by default and OmniRoute when OMNIROUTE_* variables are set.
  */
 class AIService {
+  get isOmniRouteEnabled() {
+    return isOmniRouteConfigured()
+  }
+
+  get providerName() {
+    return this.isOmniRouteEnabled ? "OmniRoute" : "ForgeAI"
+  }
+
   get apiKey() {
-    return process.env.FORGE_API_KEY
+    return process.env.OMNIROUTE_API_KEY || process.env.FORGE_API_KEY
   }
 
   get baseUrl() {
-    return process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1"
+    if (this.isOmniRouteEnabled) {
+      return process.env.OMNIROUTE_BASE_URL || OMNIROUTE_DEFAULT_BASE_URL
+    }
+
+    return process.env.FORGE_BASE_URL || FORGE_DEFAULT_BASE_URL
   }
 
   get model() {
+    if (this.isOmniRouteEnabled) {
+      return process.env.OMNIROUTE_MODEL || "auto"
+    }
+
     return process.env.FORGE_MODEL || "deepseek-r1"
   }
 
@@ -19,15 +43,15 @@ class AIService {
    * Degrades gracefully by falling back to Gemini if the primary provider fails.
    */
   async callChatCompletion(messages, temperature = 0.7, timeoutMs = 90000) {
-    // 1. Try Primary Provider (ForgeAI)
+    // 1. Try Primary OpenAI-compatible provider
     try {
-      if (!this.apiKey) {
-        throw new Error("FORGE_API_KEY is not defined in the environment.")
+      if (!this.apiKey && !this.isOmniRouteEnabled) {
+        throw new Error("FORGE_API_KEY or OMNIROUTE_API_KEY is not defined in the environment.")
       }
-      console.log(`AI Service: Attempting primary request using model ${this.model} with timeout ${timeoutMs}ms...`)
+      console.log(`AI Service: Attempting ${this.providerName} request using model ${this.model} with timeout ${timeoutMs}ms...`)
       return await this._executeRequest(this.apiKey, this.baseUrl, this.model, messages, temperature, timeoutMs)
     } catch (primaryError) {
-      console.warn("AI Service: Primary AI Gateway call failed:", primaryError.message)
+      console.warn("AI Service: Primary AI gateway call failed:", primaryError.message)
 
       // 2. Try Fallback Provider (Gemini API)
       const geminiKey = process.env.GEMINI_API_KEY
@@ -54,14 +78,18 @@ class AIService {
   async _executeRequest(apiKey, baseUrl, model, messages, temperature, timeoutMs = 90000) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    const headers = {
+      "Content-Type": "application/json"
+    }
+
+    if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`
+    }
 
     try {
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
+        headers,
         body: JSON.stringify({
           model,
           messages,

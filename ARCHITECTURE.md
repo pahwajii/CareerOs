@@ -14,7 +14,7 @@ Welcome to the **Career Manager** architectural documentation. This guide detail
 │   ├── middleware/           # Authentication guards, upload helpers, global errors
 │   ├── models/               # Mongoose database models
 │   ├── routes/               # API endpoints declarations
-│   ├── services/             # Central ForgeAI & Gemini core integrations
+│   ├── services/             # Central OmniRoute, ForgeAI & Gemini core integrations
 │   ├── utils/                # Environment variables validations
 │   ├── server.js             # Express application boot entry
 │   └── test-api.js           # Automated integration test suite
@@ -72,7 +72,7 @@ The `middleware/errorHandler.js` middleware traps thrown exceptions, logging tra
 ```
 
 ### 4. Startup Validation
-The `utils/envValidator.js` asserts the existence of required environment variables (`MONGO_URI`, `JWT_SECRET`, `FORGE_API_KEY`) on startup. If a variable is missing, the application logs a clean warning and shuts down safely instead of failing silently on request.
+The `utils/envValidator.js` asserts the existence of required environment variables (`MONGO_URI`, `JWT_SECRET`, and at least one AI gateway configuration such as `OMNIROUTE_BASE_URL`, `FORGE_API_KEY`, or `GEMINI_API_KEY`) on startup. If a variable is missing, the application logs a clean warning and shuts down safely instead of failing silently on request.
 
 ---
 

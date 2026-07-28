@@ -22,6 +22,15 @@ Ensure you have created and configured your local `.env` file containing databas
 npm install
 ```
 
+For OmniRoute, set:
+```bash
+OMNIROUTE_BASE_URL=http://localhost:20128/v1
+OMNIROUTE_MODEL=auto
+OMNIROUTE_API_KEY=
+```
+
+The workspace root `npm run dev` command starts OmniRoute together with the backend and frontend.
+
 Start the API development server (which uses nodemon for auto-reload):
 ```bash
 npm run dev

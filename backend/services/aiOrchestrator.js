@@ -1,52 +1,51 @@
 import aiService from "./aiService.js"
 
+const FORGE_DEFAULT_BASE_URL = "https://forge-gateway-api.fly.dev/v1"
+const OMNIROUTE_DEFAULT_BASE_URL = "http://localhost:20128/v1"
+
+function isOmniRouteConfigured() {
+  return Boolean(process.env.OMNIROUTE_BASE_URL || process.env.OMNIROUTE_API_KEY || process.env.OMNIROUTE_MODEL)
+}
+
 class AIOrchestrator {
+  getGatewayConfig(defaultForgeModel, defaultOmniRouteModel = "auto") {
+    if (isOmniRouteConfigured()) {
+      return {
+        apiKey: process.env.OMNIROUTE_API_KEY || process.env.FORGE_API_KEY,
+        baseUrl: process.env.OMNIROUTE_BASE_URL || OMNIROUTE_DEFAULT_BASE_URL,
+        model: process.env.OMNIROUTE_MODEL || defaultOmniRouteModel
+      }
+    }
+
+    return {
+      apiKey: process.env.FORGE_API_KEY,
+      baseUrl: process.env.FORGE_BASE_URL || FORGE_DEFAULT_BASE_URL,
+      model: defaultForgeModel
+    }
+  }
+
   getModelForTask(taskType) {
     // Select model based on task specifications from skills.md
     switch (taskType) {
       case "resume-tailoring":
       case "ats-analysis":
       case "interview-prep":
-        return {
-          apiKey: process.env.FORGE_API_KEY,
-          baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: "gpt-5.6-sol" // Premium OpenAI model for high-quality resume writing
-        }
+        return this.getGatewayConfig("gpt-5.6-sol", "auto/coding") // Quality-first models for resume writing and prep
       case "gap-analysis":
-        return {
-          apiKey: process.env.FORGE_API_KEY,
-          baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: "deepseek-r1"
-        }
+        return this.getGatewayConfig("deepseek-r1", "auto")
       case "resume-parsing":
       case "job-parsing":
       case "portfolio-parsing":
       case "profile-merging":
       case "profile-building":
-        return {
-          apiKey: process.env.FORGE_API_KEY,
-          baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: "gpt-5.6-luna" // 1.05m context, cost-effective for large text parsing
-        }
+        return this.getGatewayConfig("gpt-5.6-luna", "auto/fast") // Fast structured extraction
       case "github-analysis":
-        return {
-          apiKey: process.env.FORGE_API_KEY,
-          baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: "kimi-k2.7-code"
-        }
+        return this.getGatewayConfig("kimi-k2.7-code", "auto/coding")
       case "cover-letters":
       case "emails":
-        return {
-          apiKey: process.env.FORGE_API_KEY,
-          baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: "gpt-5.6-terra" // High quality, balanced for text drafting
-        }
+        return this.getGatewayConfig("gpt-5.6-terra", "auto") // High quality, balanced for text drafting
       default:
-        return {
-          apiKey: process.env.FORGE_API_KEY,
-          baseUrl: process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1",
-          model: "gpt-5.6-sol" // Premium fallback model
-        }
+        return this.getGatewayConfig("gpt-5.6-sol", "auto")
     }
   }
 
@@ -62,17 +61,20 @@ class AIOrchestrator {
       if (customModel.includes("gemini")) {
         key = process.env.GEMINI_API_KEY
         url = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai"
+      } else if (isOmniRouteConfigured()) {
+        key = process.env.OMNIROUTE_API_KEY || process.env.FORGE_API_KEY
+        url = process.env.OMNIROUTE_BASE_URL || OMNIROUTE_DEFAULT_BASE_URL
       } else {
         key = process.env.FORGE_API_KEY
-        url = process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1"
+        url = process.env.FORGE_BASE_URL || FORGE_DEFAULT_BASE_URL
       }
     }
 
     if (!key) {
-      key = process.env.FORGE_API_KEY || process.env.GEMINI_API_KEY
+      key = process.env.OMNIROUTE_API_KEY || process.env.FORGE_API_KEY || process.env.GEMINI_API_KEY
     }
     if (!url) {
-      url = process.env.FORGE_BASE_URL || "https://forge-gateway-api.fly.dev/v1"
+      url = process.env.OMNIROUTE_BASE_URL || process.env.FORGE_BASE_URL || FORGE_DEFAULT_BASE_URL
     }
 
     // Opus gets 5-minute timeout — all other models get 3-minute timeout
