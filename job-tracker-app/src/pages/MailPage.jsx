@@ -20,6 +20,7 @@ export default function MailPage() {
   const [tone, setTone] = useState("warm professional")
   const [subject, setSubject] = useState("")
   const [content, setContent] = useState("")
+  const [attachResume, setAttachResume] = useState(false)
   const [confirmSend, setConfirmSend] = useState(false)
   const [message, setMessage] = useState({ text: "", type: "" })
 
@@ -69,6 +70,12 @@ export default function MailPage() {
     setMessage({ text, type })
   }
 
+  const getAttachmentLabel = (attachment) => {
+    if (!attachment) return ""
+    const source = attachment.source === "tailored" ? "tailored resume" : "profile resume"
+    return ` with ${source} attached (${attachment.fileName})`
+  }
+
   const handleConnect = async () => {
     try {
       const data = await connectAsync.execute()
@@ -114,7 +121,8 @@ export default function MailPage() {
     to,
     subject,
     content,
-    tone
+    tone,
+    attachResume
   })
 
   const handleCreateDraft = async () => {
@@ -122,7 +130,7 @@ export default function MailPage() {
       const data = await draftAsync.execute(getMailPayload())
       setSubject(data.subject || "")
       setContent(data.content || "")
-      showMessage(`Draft created in Gmail: ${data.draftId}`, "success")
+      showMessage(`Draft created in Gmail: ${data.draftId}${getAttachmentLabel(data.attachment)}`, "success")
     } catch (err) {
       showMessage(err.message || "Failed to create Gmail draft.", "error")
     }
@@ -134,7 +142,7 @@ export default function MailPage() {
       setSubject(data.subject || "")
       setContent(data.content || "")
       setConfirmSend(false)
-      showMessage(`Email sent: ${data.messageId}`, "success")
+      showMessage(`Email sent: ${data.messageId}${getAttachmentLabel(data.attachment)}`, "success")
     } catch (err) {
       showMessage(err.message || "Failed to send Gmail email.", "error")
     }
@@ -285,6 +293,26 @@ export default function MailPage() {
               rows={14}
               className="mt-4"
             />
+
+            <label className={`mt-4 flex items-start gap-3 rounded-xl border p-3 text-sm ${
+              attachResume
+                ? "border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20"
+                : "border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+            }`}>
+              <input
+                type="checkbox"
+                checked={attachResume}
+                onChange={(e) => setAttachResume(e.target.checked)}
+                disabled={!selectedJobId}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40"
+              />
+              <span>
+                <span className="block font-black text-slate-900 dark:text-white">Attach resume PDF</span>
+                <span className="block text-xs text-gray-500 dark:text-slate-400 mt-1">
+                  Uses the latest tailored resume for this job when available, otherwise your Master Profile resume.
+                </span>
+              </span>
+            </label>
 
             <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-slate-300">
