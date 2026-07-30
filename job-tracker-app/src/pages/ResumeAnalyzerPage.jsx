@@ -31,6 +31,7 @@ export default function ResumeAnalyzerPage() {
   const [outreachContent, setOutreachContent] = useState("")
   const [outreachHistory, setOutreachHistory] = useState([])
   const [outreachRecipient, setOutreachRecipient] = useState("")
+  const [outreachAttachResume, setOutreachAttachResume] = useState(false)
   const [gmailStatus, setGmailStatus] = useState(null)
 
   // Async executors
@@ -288,8 +289,15 @@ export default function ResumeAnalyzerPage() {
     to: outreachRecipient.trim(),
     subject: outreachSubject.trim(),
     content: outreachContent,
-    tone: outreachTone
+    tone: outreachTone,
+    attachResume: outreachAttachResume
   })
+
+  const getAttachmentLabel = (attachment) => {
+    if (!attachment) return ""
+    const source = attachment.source === "tailored" ? "tailored resume" : "profile resume"
+    return ` with ${source} attached (${attachment.fileName})`
+  }
 
   const validateOutreachMail = () => {
     if (!gmailStatus?.connected) {
@@ -318,7 +326,7 @@ export default function ResumeAnalyzerPage() {
       const data = await gmailDraftAsync.execute(getOutreachMailPayload())
       setOutreachSubject(data.subject || outreachSubject)
       setOutreachContent(data.content || outreachContent)
-      showToast(`Gmail draft created: ${data.draftId}`, "success")
+      showToast(`Gmail draft created: ${data.draftId}${getAttachmentLabel(data.attachment)}`, "success")
     } catch (err) {
       showToast(err.message || "Failed to create Gmail draft.", "error")
     }
@@ -332,7 +340,7 @@ export default function ResumeAnalyzerPage() {
       const data = await gmailSendAsync.execute({ ...getOutreachMailPayload(), confirm: true })
       setOutreachSubject(data.subject || outreachSubject)
       setOutreachContent(data.content || outreachContent)
-      showToast(`Email sent from Gmail: ${data.messageId}`, "success")
+      showToast(`Email sent from Gmail: ${data.messageId}${getAttachmentLabel(data.attachment)}`, "success")
     } catch (err) {
       showToast(err.message || "Failed to send Gmail email.", "error")
     }
@@ -789,6 +797,26 @@ export default function ResumeAnalyzerPage() {
                           onChange={(e) => setOutreachRecipient(e.target.value)}
                           placeholder="recruiter@company.com"
                         />
+
+                        <label className={`flex items-start gap-3 rounded-xl border p-3 text-sm ${
+                          outreachAttachResume
+                            ? "border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20"
+                            : "border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={outreachAttachResume}
+                            onChange={(e) => setOutreachAttachResume(e.target.checked)}
+                            disabled={!selectedJobId}
+                            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40"
+                          />
+                          <span>
+                            <span className="block font-black text-slate-900 dark:text-white">Attach resume PDF</span>
+                            <span className="block text-xs text-gray-500 dark:text-slate-400 mt-1">
+                              Uses the latest tailored resume for this job when available, otherwise your Master Profile resume.
+                            </span>
+                          </span>
+                        </label>
 
                         <div className="flex flex-wrap gap-2 justify-end">
                           <Button
