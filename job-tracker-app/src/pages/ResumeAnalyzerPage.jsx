@@ -30,6 +30,8 @@ export default function ResumeAnalyzerPage() {
   const [outreachSubject, setOutreachSubject] = useState("")
   const [outreachContent, setOutreachContent] = useState("")
   const [outreachHistory, setOutreachHistory] = useState([])
+  const [outreachRecipient, setOutreachRecipient] = useState("")
+  const [gmailStatus, setGmailStatus] = useState(null)
 
   // Async executors
   const uploadAsync = useAsync(api.uploadResumeFile)
@@ -38,6 +40,10 @@ export default function ResumeAnalyzerPage() {
   const tailorResumeAsync = useAsync(api.tailorResume)
   const generateOutreachAsync = useAsync(api.generateOutreach)
   const saveOutreachAsync = useAsync(api.saveOutreach)
+  const gmailStatusAsync = useAsync(api.getGmailStatus)
+  const gmailConnectAsync = useAsync(api.getGmailConnectUrl)
+  const gmailDraftAsync = useAsync(api.createGmailDraft)
+  const gmailSendAsync = useAsync(api.sendGmailEmail)
 
   // Load configuration details on mount
   useEffect(() => {
@@ -68,6 +74,7 @@ export default function ResumeAnalyzerPage() {
         setJobs(data || [])
         if (data && data.length > 0) {
           setSelectedJobId(data[0]._id)
+          setOutreachRecipient(data[0].recruiterEmail || "")
         }
       } catch (err) {
         console.error("Jobs load failed:", err)
@@ -76,6 +83,7 @@ export default function ResumeAnalyzerPage() {
 
     fetchProfileCheck()
     fetchJobsCheck()
+    refreshGmailStatus()
   }, [])
 
   // Load history list when a job selection changes in Tailoring/Outreach tabs
@@ -250,6 +258,86 @@ export default function ResumeAnalyzerPage() {
     }
   }
 
+  const refreshGmailStatus = async () => {
+    try {
+      const data = await gmailStatusAsync.execute()
+      setGmailStatus(data)
+    } catch (err) {
+      console.error("Gmail status failed:", err)
+      setGmailStatus(null)
+    }
+  }
+
+  const handleConnectGmail = async () => {
+    try {
+      const data = await gmailConnectAsync.execute()
+      window.location.href = data.url
+    } catch (err) {
+      showToast(err.message || "Failed to start Gmail connection.", "error")
+    }
+  }
+
+  const handleSelectJob = (jobId) => {
+    setSelectedJobId(jobId)
+    const job = jobs.find(j => j._id === jobId)
+    setOutreachRecipient(job?.recruiterEmail || "")
+  }
+
+  const getOutreachMailPayload = () => ({
+    jobId: selectedJobId,
+    to: outreachRecipient.trim(),
+    subject: outreachSubject.trim(),
+    content: outreachContent,
+    tone: outreachTone
+  })
+
+  const validateOutreachMail = () => {
+    if (!gmailStatus?.connected) {
+      showToast("Connect Gmail from the MAIL section before sending.", "error")
+      return false
+    }
+    if (!selectedJobId) {
+      showToast("Select a target job before sending mail.", "error")
+      return false
+    }
+    if (!outreachRecipient.trim()) {
+      showToast("Add a recipient email before sending mail.", "error")
+      return false
+    }
+    if (!outreachContent.trim()) {
+      showToast("Generate or write outreach content before sending mail.", "error")
+      return false
+    }
+    return true
+  }
+
+  const handleCreateGmailDraftFromOutreach = async () => {
+    if (!validateOutreachMail()) return
+
+    try {
+      const data = await gmailDraftAsync.execute(getOutreachMailPayload())
+      setOutreachSubject(data.subject || outreachSubject)
+      setOutreachContent(data.content || outreachContent)
+      showToast(`Gmail draft created: ${data.draftId}`, "success")
+    } catch (err) {
+      showToast(err.message || "Failed to create Gmail draft.", "error")
+    }
+  }
+
+  const handleSendGmailFromOutreach = async () => {
+    if (!validateOutreachMail()) return
+    if (!window.confirm(`Send this email to ${outreachRecipient.trim()} from Gmail?`)) return
+
+    try {
+      const data = await gmailSendAsync.execute({ ...getOutreachMailPayload(), confirm: true })
+      setOutreachSubject(data.subject || outreachSubject)
+      setOutreachContent(data.content || outreachContent)
+      showToast(`Email sent from Gmail: ${data.messageId}`, "success")
+    } catch (err) {
+      showToast(err.message || "Failed to send Gmail email.", "error")
+    }
+  }
+
   const handleCopyText = (text) => {
     navigator.clipboard.writeText(text)
     showToast("Copied to clipboard!", "success")
@@ -271,6 +359,8 @@ export default function ResumeAnalyzerPage() {
   const activeError = matchMode === "profile" ? analyzeProfileAsync.error : analyzeTextAsync.error
 
   const selectedJob = jobs.find(j => j._id === selectedJobId)
+  const canMailOutreach = outreachType !== "LinkedIn Message"
+  const emailOutreachTypes = ["Email", "Cold Email", "Follow-up", "Thank You Email"]
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 transition-colors duration-300">
@@ -416,7 +506,7 @@ export default function ResumeAnalyzerPage() {
                 </label>
                 <select
                   value={selectedJobId}
-                  onChange={(e) => setSelectedJobId(e.target.value)}
+                  onChange={(e) => handleSelectJob(e.target.value)}
                   className="w-full text-xs font-bold px-3 py-2.5 rounded-xl border border-gray-250 dark:border-slate-800 dark:bg-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {jobs.map(j => (
@@ -639,7 +729,7 @@ export default function ResumeAnalyzerPage() {
                     </div>
 
                     {/* Email Subject field if applicable */}
-                    {["Email", "Cold Email", "Follow-up", "Thank You Email"].includes(outreachType) && (
+                    {(canMailOutreach || emailOutreachTypes.includes(outreachType)) && (
                       <div className="space-y-1.5">
                         <Input
                           label="Email Subject Line"
@@ -659,6 +749,71 @@ export default function ResumeAnalyzerPage() {
                         className="w-full h-80 text-xs px-3.5 py-3 rounded-xl border border-gray-250 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono leading-relaxed"
                       />
                     </div>
+
+                    {canMailOutreach && (
+                      <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-white dark:bg-slate-900 p-4 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] uppercase font-black text-indigo-650 dark:text-indigo-400">Gmail Delivery</span>
+                            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                              {gmailStatus?.connected ? `Connected as ${gmailStatus.email}` : "Gmail is not connected yet."}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={refreshGmailStatus}
+                              loading={gmailStatusAsync.loading}
+                              className="text-xs font-bold"
+                            >
+                              Refresh
+                            </Button>
+                            {!gmailStatus?.connected && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={handleConnectGmail}
+                                loading={gmailConnectAsync.loading}
+                                className="text-xs font-bold"
+                              >
+                                Connect Gmail
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        <Input
+                          label="Recipient Email"
+                          value={outreachRecipient}
+                          onChange={(e) => setOutreachRecipient(e.target.value)}
+                          placeholder="recruiter@company.com"
+                        />
+
+                        <div className="flex flex-wrap gap-2 justify-end">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleCreateGmailDraftFromOutreach}
+                            loading={gmailDraftAsync.loading}
+                            disabled={!gmailStatus?.connected || !outreachRecipient.trim() || !outreachContent.trim()}
+                            className="text-xs font-bold"
+                          >
+                            Create Gmail Draft
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={handleSendGmailFromOutreach}
+                            loading={gmailSendAsync.loading}
+                            disabled={!gmailStatus?.connected || !outreachRecipient.trim() || !outreachContent.trim()}
+                            className="text-xs font-bold bg-indigo-650"
+                          >
+                            Send from Gmail
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -682,6 +837,18 @@ export default function ResumeAnalyzerPage() {
                           </div>
                           
                           <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOutreachType(item.type)
+                                setOutreachTone(item.tone)
+                                setOutreachSubject(item.subject || "")
+                                setOutreachContent(item.content || "")
+                              }}
+                              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                            >
+                              Load
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleCopyText(item.content)}

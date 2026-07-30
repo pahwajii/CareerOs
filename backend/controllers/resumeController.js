@@ -1,4 +1,6 @@
 import pdf from "pdf-parse"
+import fs from "fs"
+import path from "path"
 import User from "../models/User.js"
 
 /**
@@ -23,11 +25,20 @@ export async function uploadResume(req, res, next) {
       return res.status(404).json({ message: "User not found" })
     }
 
+    const dir = path.join("uploads", "resumes")
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+    const savedFileName = `${req.userId}_resume.pdf`
+    fs.writeFileSync(path.join(dir, savedFileName), req.file.buffer)
+
     user.resumeText = text.trim()
+    user.resumeFileName = savedFileName
     await user.save()
 
     res.json({
       message: "Resume uploaded and text extracted successfully!",
+      resumeFileName: user.resumeFileName,
       resumeText: user.resumeText,
       resumeTextLength: user.resumeText.length
     })

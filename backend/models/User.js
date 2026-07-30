@@ -36,6 +36,22 @@ const certificationSchema = new mongoose.Schema({
   credentialUrl: { type: String, default: "" }
 })
 
+const gmailConnectionSchema = new mongoose.Schema(
+  {
+    connected: { type: Boolean, default: false },
+    email: { type: String, default: "" },
+    googleUserId: { type: String, default: "" },
+    scope: { type: String, default: "" },
+    tokenType: { type: String, default: "" },
+    accessToken: { type: String, default: "", select: false },
+    refreshToken: { type: String, default: "", select: false },
+    expiryDate: { type: Date, default: null },
+    connectedAt: { type: Date, default: null },
+    lastSyncedAt: { type: Date, default: null }
+  },
+  { _id: false }
+)
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -90,7 +106,8 @@ const userSchema = new mongoose.Schema(
     },
     
     resumeFileName: { type: String, default: "" },
-    portfolioFileName: { type: String, default: "" }
+    portfolioFileName: { type: String, default: "" },
+    gmailConnection: { type: gmailConnectionSchema, default: () => ({}) }
   },
   { timestamps: true }
 )

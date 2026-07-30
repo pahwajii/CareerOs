@@ -10,6 +10,7 @@ const Login = lazy(() => import("./pages/Login"))
 const Signup = lazy(() => import("./pages/Signup"))
 const ResumeAnalyzerPage = lazy(() => import("./pages/ResumeAnalyzerPage"))
 const InterviewPrepPage = lazy(() => import("./pages/InterviewPrepPage"))
+const MailPage = lazy(() => import("./pages/MailPage"))
 
 // Simple Auth Guard
 const ProtectedRoute = ({ children }) => {
@@ -65,6 +66,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <InterviewPrepPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mail"
+              element={
+                <ProtectedRoute>
+                  <MailPage />
                 </ProtectedRoute>
               }
             />

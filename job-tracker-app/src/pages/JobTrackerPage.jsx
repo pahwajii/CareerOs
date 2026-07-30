@@ -66,6 +66,8 @@ export default function JobTrackerPage() {
 
   // Playwright Auto-Apply execution states
   const [automating, setAutomating] = useState(false)
+  const [planningApply, setPlanningApply] = useState(false)
+  const [autoPlan, setAutoPlan] = useState(null)
   const [autoMessage, setAutoMessage] = useState("")
 
   // Excel / CSV Batch Import States
@@ -172,6 +174,7 @@ export default function JobTrackerPage() {
   const openCreateModal = () => {
     setSelectedJob(null)
     setAutoMessage("")
+    setAutoPlan(null)
     setShowJdExtractor(false)
     setRawJdText("")
     setParseError("")
@@ -229,6 +232,7 @@ export default function JobTrackerPage() {
   const openEditModal = (job) => {
     setSelectedJob(job)
     setAutoMessage("")
+    setAutoPlan(null)
     setModalData({
       company: job.company || "",
       role: job.role || "",
@@ -263,6 +267,48 @@ export default function JobTrackerPage() {
       setIsModalOpen(false)
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  const handleBuildApplyPlan = async () => {
+    if (!selectedJob?._id) return
+    await prepareApplyPlan(selectedJob._id)
+  }
+
+  const prepareApplyPlan = async (jobId) => {
+    setPlanningApply(true)
+    setAutoMessage("")
+    try {
+      const plan = await api.automatePlan(jobId)
+      setAutoPlan(plan)
+      setAutoMessage(plan.readiness.canLaunch ? "Workflow is ready. Review the steps, then launch the browser prefill." : "Workflow has blockers. Fix them before launching.")
+    } catch (err) {
+      setAutoPlan(null)
+      setAutoMessage(err.message || "Failed to prepare auto-apply workflow.")
+    } finally {
+      setPlanningApply(false)
+    }
+  }
+
+  const openApplyWorkflow = async (job, event) => {
+    event?.stopPropagation()
+    openEditModal(job)
+    await prepareApplyPlan(job._id)
+  }
+
+  const handleLaunchApplyWorkflow = async () => {
+    if (!selectedJob?._id) return
+    setAutomating(true)
+    setAutoMessage("Launching headed browser and starting the apply workflow...")
+    try {
+      const res = await api.automateApply(selectedJob._id)
+      setAutoMessage(res.message || "Automation process started.")
+      fetchJobs()
+    } catch (err) {
+      setAutoMessage(err.message || "Automation triggered with errors.")
+      fetchJobs()
+    } finally {
+      setAutomating(false)
     }
   }
 
@@ -521,6 +567,17 @@ export default function JobTrackerPage() {
                         >
                           <h4 className="text-xs font-black text-gray-900 dark:text-white leading-snug line-clamp-1">{job.role}</h4>
                           <p className="text-[10px] font-bold text-gray-450 dark:text-slate-400 mt-0.5">{job.company}</p>
+
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={!job.url}
+                            onClick={(e) => openApplyWorkflow(job, e)}
+                            className="mt-3 w-full text-[10px] font-black py-2"
+                          >
+                            Auto-Apply
+                          </Button>
                           
                           {job.location && (
                             <span className="inline-block text-[9px] font-bold text-gray-400 mt-2 bg-gray-50 dark:bg-slate-950/30 px-1.5 py-0.5 rounded border dark:border-slate-800">
@@ -578,6 +635,16 @@ export default function JobTrackerPage() {
                   </div>
 
                   <div className="flex gap-3 flex-wrap items-center">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      disabled={!job.url}
+                      onClick={(e) => openApplyWorkflow(job, e)}
+                      className="text-xs font-bold bg-indigo-650"
+                    >
+                      Auto-Apply
+                    </Button>
                     {job.matchScore > 0 && (
                       <span className="text-xs font-bold text-indigo-650 bg-indigo-50/50 px-3 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900/30">
                         🎯 {job.matchScore}% Match
@@ -876,27 +943,71 @@ export default function JobTrackerPage() {
                     </div>
                     <Button
                       type="button"
+                      variant="secondary"
+                      onClick={handleBuildApplyPlan}
+                      loading={planningApply}
+                      className="text-xs font-bold px-4 py-2.5"
+                    >
+                      Prepare Workflow
+                    </Button>
+                    <Button
+                      type="button"
                       variant="primary"
-                      onClick={async () => {
-                        setAutomating(true)
-                        setAutoMessage("Launching Playwright Chrome headed browser...")
-                        try {
-                          const res = await api.automateApply(selectedJob._id)
-                          setAutoMessage(res.message || "Automation process finished.")
-                          fetchJobs()
-                        } catch (err) {
-                          setAutoMessage(err.message || "Automation triggered with errors.")
-                          fetchJobs()
-                        } finally {
-                          setAutomating(false)
-                        }
-                      }}
+                      onClick={handleLaunchApplyWorkflow}
                       loading={automating}
+                      disabled={autoPlan && !autoPlan.readiness?.canLaunch}
                       className="text-xs font-bold px-4 py-2.5 bg-indigo-650"
                     >
                       🚀 Open & Prefill Form
                     </Button>
                   </div>
+
+                  {autoPlan && (
+                    <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-4">
+                      <div className="rounded-xl border dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 p-3.5 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[10px] font-black uppercase text-gray-500 dark:text-slate-400">Readiness</span>
+                          <span className={`text-[10px] font-black px-2 py-1 rounded-full border ${
+                            autoPlan.readiness.canLaunch
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900"
+                              : "bg-red-50 text-red-700 border-red-100 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900"
+                          }`}>
+                            {autoPlan.readiness.canLaunch ? "Ready" : "Blocked"}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-gray-600 dark:text-slate-300 space-y-1.5">
+                          <p><span className="font-bold">ATS:</span> {autoPlan.job.ats}</p>
+                          <p><span className="font-bold">AI Gateway:</span> {autoPlan.readiness.aiGateway}</p>
+                          <p><span className="font-bold">Resume:</span> {autoPlan.readiness.resume.available ? `${autoPlan.readiness.resume.source} - ${autoPlan.readiness.resume.fileName}` : "Not found"}</p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 p-3.5 space-y-3">
+                        {autoPlan.readiness.blockers.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-red-600 dark:text-red-300 mb-1.5">Blockers</p>
+                            <ul className="list-disc pl-4 text-[11px] text-red-700 dark:text-red-300 space-y-1">
+                              {autoPlan.readiness.blockers.map((item) => <li key={item}>{item}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                        {autoPlan.readiness.warnings.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-300 mb-1.5">Warnings</p>
+                            <ul className="list-disc pl-4 text-[11px] text-amber-700 dark:text-amber-300 space-y-1">
+                              {autoPlan.readiness.warnings.map((item) => <li key={item}>{item}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-[10px] font-black uppercase text-gray-500 dark:text-slate-400 mb-1.5">Execution Steps</p>
+                          <ol className="list-decimal pl-4 text-[11px] text-gray-600 dark:text-slate-300 space-y-1">
+                            {autoPlan.steps.map((step) => <li key={step}>{step}</li>)}
+                          </ol>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {autoMessage && (
                     <div className="bg-indigo-50/40 border border-indigo-100 dark:bg-slate-900/50 dark:border-slate-800 p-3.5 rounded-xl text-xs leading-relaxed text-indigo-955 dark:text-indigo-400 font-semibold border-l-4 border-l-indigo-600">

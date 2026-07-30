@@ -1,6 +1,25 @@
 import automationService from "../services/automationService.js"
 
 /**
+ * Build an auto-apply readiness plan
+ * POST /api/automate/plan
+ */
+export async function getApplyPlan(req, res, next) {
+  const { jobId } = req.body
+
+  try {
+    if (!jobId) {
+      return res.status(400).json({ message: "jobId is required to build the automation plan." })
+    }
+
+    const plan = await automationService.buildAutoApplyPlan(req.userId, jobId)
+    res.json(plan)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * Trigger Playwright headed browser form auto-filler
  * POST /api/automate/apply
  */

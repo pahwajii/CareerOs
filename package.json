@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "backend",
-    "job-tracker-app"
+    "job-tracker-app",
+    "omniroute-server"
   ],
   "scripts": {
     "install-all": "npm install",
@@ -12,7 +13,7 @@
     "dev:backend:wait-omniroute": "node scripts/wait-for-port.mjs 127.0.0.1 20128 90000 && npm run dev:backend",
     "dev:frontend": "npm run dev -w job-tracker-app",
     "dev": "npx concurrently --kill-others-on-fail \"npm run omniroute\" \"npm run dev:backend:wait-omniroute\" \"npm run dev:frontend\"",
-    "omniroute": "npx -y omniroute@latest"
+    "omniroute": "npm run start -w omniroute-server -- --port 20128 --no-open"
   },
   "dependencies": {
     "react-router-dom": "^7.7.1",

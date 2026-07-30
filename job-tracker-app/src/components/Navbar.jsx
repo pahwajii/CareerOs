@@ -48,6 +48,9 @@ export default function Navbar() {
             <Link to="/prep" className={linkStyles("/prep")}>
               🗣 Interview Prep
             </Link>
+            <Link to="/mail" className={linkStyles("/mail")}>
+              MAIL
+            </Link>
           </div>
         )}
         

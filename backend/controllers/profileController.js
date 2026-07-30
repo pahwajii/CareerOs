@@ -107,7 +107,8 @@ export async function uploadResumeFile(req, res, next) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
     }
-    const filePath = path.join(dir, `${req.userId}_resume.pdf`)
+    const savedFileName = `${req.userId}_resume.pdf`
+    const filePath = path.join(dir, savedFileName)
     fs.writeFileSync(filePath, req.file.buffer)
 
     // Cache metadata & text on user record
@@ -117,7 +118,7 @@ export async function uploadResumeFile(req, res, next) {
     }
 
     user.resumeText = text.trim()
-    user.resumeFileName = req.file.originalname
+    user.resumeFileName = savedFileName
     await user.save()
 
     res.json({

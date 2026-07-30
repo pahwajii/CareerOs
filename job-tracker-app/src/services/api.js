@@ -297,7 +297,51 @@ export const api = {
     })
   },
 
+  // Gmail Mail API
+  getGmailStatus: async () => {
+    return request("/gmail/status")
+  },
+
+  getGmailConnectUrl: async () => {
+    return request("/gmail/connect-url")
+  },
+
+  disconnectGmail: async () => {
+    return request("/gmail/disconnect", {
+      method: "DELETE"
+    })
+  },
+
+  getGmailMessages: async ({ query = "", maxResults = 20 } = {}) => {
+    const params = new URLSearchParams()
+    if (query) params.set("query", query)
+    if (maxResults) params.set("maxResults", String(maxResults))
+    const suffix = params.toString() ? `?${params.toString()}` : ""
+    return request(`/gmail/messages${suffix}`)
+  },
+
+  createGmailDraft: async (payload) => {
+    return request("/gmail/drafts", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    })
+  },
+
+  sendGmailEmail: async (payload) => {
+    return request("/gmail/send", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    })
+  },
+
   // Playwright Browser Automation API
+  automatePlan: async (jobId) => {
+    return request("/automate/plan", {
+      method: "POST",
+      body: JSON.stringify({ jobId })
+    })
+  },
+
   automateApply: async (jobId) => {
     return request("/automate/apply", {
       method: "POST",
@@ -320,4 +364,3 @@ export const api = {
     })
   }
 }
-

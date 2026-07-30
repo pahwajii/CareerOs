@@ -14,6 +14,7 @@ import resumeRoutes from "./routes/resume.js"
 import aiRoutes from "./routes/ai.js"
 import prepRoutes from "./routes/prep.js"
 import automateRoutes from "./routes/automate.js"
+import gmailRoutes from "./routes/gmail.js"
 
 // Load env variables
 dotenv.config()
@@ -65,6 +66,7 @@ app.use("/api/resume", resumeRoutes)
 app.use("/api/ai", aiRoutes)
 app.use("/api/prep", prepRoutes)
 app.use("/api/automate", automateRoutes)
+app.use("/api/gmail", gmailRoutes)
 
 // Root Endpoint
 app.get("/", (req, res) => {

@@ -5,19 +5,113 @@ import User from "../models/User.js"
 import Job from "../models/Job.js"
 import TailoredResume from "../models/TailoredResume.js"
 import aiOrchestrator from "./aiOrchestrator.js"
+import { isOmniRouteConfigured } from "../config/aiGateway.js"
+
+function getExistingUploadPath(folder, ...fileNames) {
+  for (const fileName of fileNames) {
+    if (!fileName) continue
+    const candidatePath = path.resolve("uploads", folder, path.basename(fileName))
+    if (fs.existsSync(candidatePath)) return candidatePath
+  }
+  return ""
+}
+
+function getTailoredResumePath(tailored) {
+  return getExistingUploadPath("tailored", tailored?.pdfFileName)
+}
+
+function getProfileResumePath(user) {
+  return getExistingUploadPath("resumes", user.resumeFileName, `${user._id}_resume.pdf`)
+}
+
+function isTailoredResumePath(resumePath) {
+  return resumePath.includes(path.resolve("uploads", "tailored"))
+}
 
 class AutomationService {
+  async buildAutoApplyPlan(userId, jobId) {
+    const job = await Job.findOne({ _id: jobId, user: userId })
+    if (!job) throw new Error("Job application not found.")
+
+    const user = await User.findById(userId)
+    if (!user) throw new Error("User not found.")
+
+    const tailored = await TailoredResume.findOne({ user: userId, job: jobId }).sort({ createdAt: -1 })
+    const tailoredResumePath = getTailoredResumePath(tailored)
+    const rawResumePath = getProfileResumePath(user)
+    const resumePath = tailoredResumePath || rawResumePath
+
+    const warnings = []
+    const blockers = []
+
+    if (!job.url) blockers.push("Add a job listing URL before launching auto-apply.")
+    if (!user.name) blockers.push("Add your full name in the master profile.")
+    if (!user.email) blockers.push("Add your email in the master profile.")
+    if (!resumePath) warnings.push("No resume PDF was found. The workflow can still fill text fields, but it will not upload a resume.")
+    if (!user.phone) warnings.push("Phone number is missing from the master profile.")
+    if (!user.codingProfiles?.linkedin && !user.profileLinks?.linkedin) warnings.push("LinkedIn URL is missing from the master profile.")
+    if (!job.jobDescription) warnings.push("Job description is empty, so AI answers will use only your profile.")
+    if (!isOmniRouteConfigured()) warnings.push("OmniRoute is not configured. The AI step will fall back to the configured non-OmniRoute gateway if available.")
+
+    return {
+      job: {
+        id: job._id,
+        company: job.company,
+        role: job.role,
+        url: job.url,
+        ats: this.detectAtsFromText(job.url || "")
+      },
+      readiness: {
+        canLaunch: blockers.length === 0,
+        blockers,
+        warnings,
+        resume: resumePath
+          ? {
+              available: true,
+              source: isTailoredResumePath(resumePath) ? "tailored" : "profile",
+              fileName: path.basename(resumePath)
+            }
+          : { available: false, source: "", fileName: "" },
+        aiGateway: isOmniRouteConfigured() ? "OmniRoute" : "Fallback gateway"
+      },
+      steps: [
+        "Load job, profile, and latest tailored resume.",
+        "Open the listing in a headed browser window.",
+        "Detect ATS platform and choose the best field-filling strategy.",
+        "Fill contact details, profile links, and resume upload fields.",
+        "Use the AI gateway to draft short screening-question answers.",
+        "Pause for your review. You make the final submit decision.",
+        "After the browser closes, move the job to Applied and add a timeline event."
+      ]
+    }
+  }
+
+  detectAtsFromText(text) {
+    const value = text.toLowerCase()
+    if (value.includes("greenhouse.io") || value.includes("greenhouse")) return "Greenhouse"
+    if (value.includes("lever.co") || value.includes("lever-app")) return "Lever"
+    if (value.includes("ashbyhq.com") || value.includes("ashby")) return "Ashby"
+    if (value.includes("myworkdayjobs.com") || value.includes("workday")) return "Workday"
+    return "Generic"
+  }
+
   /**
    * Main automation trigger. Generates resume/cover letter, launches headed browser, auto-fills form fields,
    * answers screening questions with Gemini Flash, and pauses for human inspection.
    */
   async runAutoApply(userId, jobId, onProgress) {
     let context = null
+    let browser = null
 
 
     try {
       // 1. Load job and profile context
       onProgress("loading", "Fetching application contexts...")
+      const plan = await this.buildAutoApplyPlan(userId, jobId)
+      if (!plan.readiness.canLaunch) {
+        throw new Error(plan.readiness.blockers.join(" "))
+      }
+
       const job = await Job.findOne({ _id: jobId, user: userId })
       if (!job) throw new Error("Job application not found.")
       if (!job.url) throw new Error("Job application URL is missing.")
@@ -27,19 +121,8 @@ class AutomationService {
 
       // 2. Identify or generate tailored resume
       onProgress("resume", "Locating tailored resume PDF...")
-      let resumePath = ""
       const tailored = await TailoredResume.findOne({ user: userId, job: jobId }).sort({ createdAt: -1 })
-      
-      if (tailored && tailored.pdfFileName) {
-        resumePath = path.join("uploads", "tailored", tailored.pdfFileName)
-      }
-
-      // Fallback: If no tailored resume exists, check for raw resume PDF
-      if (!resumePath || !fs.existsSync(resumePath)) {
-        if (user.resumeFileName) {
-          resumePath = path.join("uploads", "resumes", user.resumeFileName)
-        }
-      }
+      let resumePath = getTailoredResumePath(tailored) || getProfileResumePath(user)
 
       if (!resumePath || !fs.existsSync(resumePath)) {
         onProgress("warning", "No resume PDF file found. Form filling will proceed without upload.")
@@ -59,8 +142,6 @@ class AutomationService {
           "--disable-setuid-sandbox"
         ]
       }
-
-      let browser = null
 
       if (bravePath) {
         console.log(`🚀 Playwright: Launching Brave Browser directly from ${bravePath}`)
@@ -106,16 +187,16 @@ class AutomationService {
       const url = job.url.toLowerCase()
       const content = await page.content()
 
-      if (url.includes("greenhouse.io") || content.includes("greenhouse")) {
+      if (this.detectAtsFromText(`${url} ${content}`) === "Greenhouse") {
         onProgress("filling", "Prefilling Greenhouse application form...")
         await this.fillGreenhouse(page, user, resumePath)
-      } else if (url.includes("lever.co") || content.includes("lever-app")) {
+      } else if (this.detectAtsFromText(`${url} ${content}`) === "Lever") {
         onProgress("filling", "Prefilling Lever application form...")
         await this.fillLever(page, user, resumePath)
-      } else if (url.includes("ashbyhq.com") || content.includes("ashby")) {
+      } else if (this.detectAtsFromText(`${url} ${content}`) === "Ashby") {
         onProgress("filling", "Prefilling Ashby application form...")
         await this.fillAshby(page, user, resumePath)
-      } else if (url.includes("myworkdayjobs.com") || content.includes("workday")) {
+      } else if (this.detectAtsFromText(`${url} ${content}`) === "Workday") {
         onProgress("filling", "Prefilling Workday application form...")
         await this.fillWorkday(page, user, resumePath)
       } else {
@@ -366,4 +447,3 @@ function getBravePath() {
 }
 
 export default new AutomationService()
-
