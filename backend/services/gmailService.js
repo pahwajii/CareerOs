@@ -160,7 +160,7 @@ function buildRawEmail({ to, subject, content, attachments = [] }) {
       "",
       `--${boundary}`,
       'Content-Type: text/plain; charset="UTF-8"',
-      "Content-Transfer-Encoding: 7bit",
+      "Content-Transfer-Encoding: 8bit",
       "",
       content || "",
       ...attachments.map(attachment => buildAttachmentPart(boundary, attachment)),
