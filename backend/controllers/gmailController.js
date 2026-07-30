@@ -48,8 +48,8 @@ export async function listGmailJobMessages(req, res, next) {
 
 export async function createGmailDraft(req, res, next) {
   try {
-    const { jobId, to, subject, content, tone } = req.body
-    res.json(await gmailService.createDraft({ userId: req.userId, jobId, to, subject, content, tone }))
+    const { jobId, to, subject, content, tone, attachResume } = req.body
+    res.json(await gmailService.createDraft({ userId: req.userId, jobId, to, subject, content, tone, attachResume }))
   } catch (error) {
     next(error)
   }
@@ -57,12 +57,12 @@ export async function createGmailDraft(req, res, next) {
 
 export async function sendGmailEmail(req, res, next) {
   try {
-    const { jobId, to, subject, content, tone, confirm } = req.body
+    const { jobId, to, subject, content, tone, attachResume, confirm } = req.body
     if (confirm !== true) {
       return res.status(400).json({ message: "Confirm must be true before sending email." })
     }
 
-    res.json(await gmailService.sendEmail({ userId: req.userId, jobId, to, subject, content, tone }))
+    res.json(await gmailService.sendEmail({ userId: req.userId, jobId, to, subject, content, tone, attachResume }))
   } catch (error) {
     next(error)
   }

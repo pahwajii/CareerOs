@@ -1,7 +1,10 @@
 import crypto from "crypto"
+import fs from "fs"
 import jwt from "jsonwebtoken"
+import path from "path"
 import User from "../models/User.js"
 import Job from "../models/Job.js"
+import TailoredResume from "../models/TailoredResume.js"
 import aiOrchestrator from "./aiOrchestrator.js"
 
 const GMAIL_SCOPES = [
@@ -101,9 +104,72 @@ function normalizeHeaderValue(value = "") {
   return String(value).replace(/\r?\n/g, " ").trim()
 }
 
-function buildRawEmail({ to, subject, content }) {
+function sanitizeAttachmentFileName(value = "Resume.pdf") {
+  const fileName = path.basename(normalizeHeaderValue(value) || "Resume.pdf")
+  const sanitized = fileName.replace(/[^a-zA-Z0-9._ -]/g, "_").replace(/\s+/g, "_")
+  return sanitized || "Resume.pdf"
+}
+
+function wrapBase64(value) {
+  return value.match(/.{1,76}/g)?.join("\r\n") || ""
+}
+
+function getExistingUploadPath(folder, ...fileNames) {
+  for (const fileName of fileNames) {
+    if (!fileName) continue
+    const candidatePath = path.resolve("uploads", folder, path.basename(fileName))
+    if (fs.existsSync(candidatePath)) return candidatePath
+  }
+  return ""
+}
+
+function getTailoredResumePath(tailored) {
+  return getExistingUploadPath("tailored", tailored?.pdfFileName)
+}
+
+function getProfileResumePath(user) {
+  return getExistingUploadPath("resumes", user.resumeFileName, `${user._id}_resume.pdf`)
+}
+
+function buildAttachmentPart(boundary, attachment) {
+  const fileBuffer = fs.readFileSync(attachment.filePath)
+  const encoded = wrapBase64(fileBuffer.toString("base64"))
+  const fileName = sanitizeAttachmentFileName(attachment.fileName)
+
+  return [
+    `--${boundary}`,
+    `Content-Type: ${attachment.mimeType || "application/octet-stream"}; name="${fileName}"`,
+    "Content-Transfer-Encoding: base64",
+    `Content-Disposition: attachment; filename="${fileName}"`,
+    "",
+    encoded
+  ].join("\r\n")
+}
+
+function buildRawEmail({ to, subject, content, attachments = [] }) {
   const cleanedTo = normalizeHeaderValue(to)
   const cleanedSubject = normalizeHeaderValue(subject)
+
+  if (attachments.length > 0) {
+    const boundary = `career-os-${crypto.randomBytes(12).toString("hex")}`
+    const mime = [
+      `To: ${cleanedTo}`,
+      `Subject: ${cleanedSubject}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: 7bit",
+      "",
+      content || "",
+      ...attachments.map(attachment => buildAttachmentPart(boundary, attachment)),
+      `--${boundary}--`
+    ].join("\r\n")
+
+    return base64UrlEncode(mime)
+  }
+
   const mime = [
     `To: ${cleanedTo}`,
     `Subject: ${cleanedSubject}`,
@@ -394,13 +460,45 @@ Use only factual profile details. Do not invent employers, metrics, degrees, or 
     }
   }
 
-  async createDraft({ userId, jobId, to, subject, content, tone }) {
+  async getResumeAttachment({ userId, jobId }) {
+    const user = await User.findById(userId)
+    if (!user) throw new Error("User not found.")
+
+    const tailored = jobId
+      ? await TailoredResume.findOne({ user: userId, job: jobId }).sort({ createdAt: -1 })
+      : null
+    const tailoredPath = getTailoredResumePath(tailored)
+
+    if (tailoredPath) {
+      return {
+        filePath: tailoredPath,
+        fileName: sanitizeAttachmentFileName(`${tailored.company}_Tailored_Resume.pdf`),
+        mimeType: "application/pdf",
+        source: "tailored"
+      }
+    }
+
+    const profilePath = getProfileResumePath(user)
+    if (!profilePath) {
+      throw new Error("No resume PDF was found. Upload a resume in Master Profile or generate a tailored resume first.")
+    }
+
+    return {
+      filePath: profilePath,
+      fileName: sanitizeAttachmentFileName(`${user.name || "CareerOS"}_Resume.pdf`),
+      mimeType: "application/pdf",
+      source: "profile"
+    }
+  }
+
+  async createDraft({ userId, jobId, to, subject, content, tone, attachResume = false }) {
     if (!to) throw new Error("Recipient email is required.")
     const accessToken = await this.getAccessToken(userId)
     const generated = await this.generateCompanyEmail({ userId, jobId, tone, to, subject, content })
     if (!generated.subject || !generated.content) {
       throw new Error("Email subject and content are required.")
     }
+    const attachment = attachResume ? await this.getResumeAttachment({ userId, jobId }) : null
 
     const draft = await requestJson("https://gmail.googleapis.com/gmail/v1/users/me/drafts", {
       method: "POST",
@@ -410,21 +508,32 @@ Use only factual profile details. Do not invent employers, metrics, degrees, or 
       },
       body: JSON.stringify({
         message: {
-          raw: buildRawEmail({ to, subject: generated.subject, content: generated.content })
+          raw: buildRawEmail({
+            to,
+            subject: generated.subject,
+            content: generated.content,
+            attachments: attachment ? [attachment] : []
+          })
         }
       })
     })
 
-    return { draftId: draft.id, messageId: draft.message?.id || "", ...generated }
+    return {
+      draftId: draft.id,
+      messageId: draft.message?.id || "",
+      attachment: attachment ? { fileName: attachment.fileName, source: attachment.source } : null,
+      ...generated
+    }
   }
 
-  async sendEmail({ userId, jobId, to, subject, content, tone }) {
+  async sendEmail({ userId, jobId, to, subject, content, tone, attachResume = false }) {
     if (!to) throw new Error("Recipient email is required.")
     const accessToken = await this.getAccessToken(userId)
     const generated = await this.generateCompanyEmail({ userId, jobId, tone, to, subject, content })
     if (!generated.subject || !generated.content) {
       throw new Error("Email subject and content are required.")
     }
+    const attachment = attachResume ? await this.getResumeAttachment({ userId, jobId }) : null
 
     const message = await requestJson("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
       method: "POST",
@@ -433,7 +542,12 @@ Use only factual profile details. Do not invent employers, metrics, degrees, or 
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        raw: buildRawEmail({ to, subject: generated.subject, content: generated.content })
+        raw: buildRawEmail({
+          to,
+          subject: generated.subject,
+          content: generated.content,
+          attachments: attachment ? [attachment] : []
+        })
       })
     })
 
@@ -446,14 +560,19 @@ Use only factual profile details. Do not invent employers, metrics, degrees, or 
             timeline: {
               title: "Gmail outreach sent",
               date: new Date(),
-              details: generated.subject
+              details: attachment ? `${generated.subject} (attached ${attachment.fileName})` : generated.subject
             }
           }
         }
       )
     }
 
-    return { messageId: message.id, threadId: message.threadId, ...generated }
+    return {
+      messageId: message.id,
+      threadId: message.threadId,
+      attachment: attachment ? { fileName: attachment.fileName, source: attachment.source } : null,
+      ...generated
+    }
   }
 
   getRedirectUrl(status, message = "") {
